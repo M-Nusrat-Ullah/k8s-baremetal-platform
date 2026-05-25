@@ -9,6 +9,26 @@ Built as a personal portfolio project; intended to host telco-shaped workloads
 **In development.** Layer 0 (architecture and repo scaffolding) only.
 See [`docs/adr/`](docs/adr/) for the running log of design decisions.
 
+## Who this is for
+
+This repository is a general-purpose Kubernetes platform that supports
+several specialised workload classes through opt-in features. The core
+cluster (Layers 1–4) is workload-agnostic.
+
+- **Platform / SRE engineers** deploying Kubernetes to bare metal or
+  on-prem VMs who want a hardened, GitOps-driven baseline without
+  inheriting cloud-provider assumptions.
+- **Telco / 5G engineers** who need Multus secondary networks, BGP,
+  and per-workload privilege exceptions (UPF, SecGW, IPsec gateways)
+  layered on top of a standard cluster — not as forks of it.
+- **Application engineers** wanting a reference of what
+  production-posture Kubernetes looks like end to end: hardening,
+  policy, observability, supply chain.
+
+Telco features are opt-in per workload, not always-on. A general
+application can be deployed without touching Multus, BGP, or
+NetworkAttachmentDefinitions.
+
 ## Quick links
 
 - [Architecture Decision Records](docs/adr/)
