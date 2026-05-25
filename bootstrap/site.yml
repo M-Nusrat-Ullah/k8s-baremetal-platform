@@ -1,0 +1,35 @@
+---
+# bootstrap/site.yml
+#
+# Top-level orchestration playbook for the bootstrap layer.
+#
+# Current scope: a connectivity-and-trust play that (a) pins each inventory
+# host's SSH key to the controller's known_hosts on first contact, and (b)
+# verifies reachability with a no-op ping. No role logic yet — roles land
+# in L1.1+ and get wired in here as separate plays or via import_role.
+#
+# Host-key handling rationale:
+#   * ansible.cfg sets host_key_checking=True globally. Every connection
+#     after first-touch is verified against ~/.ssh/known_hosts; mid-flight
+#     key changes fail the play loudly.
+#   * StrictHostKeyChecking=accept-new lets first-time-seen hosts auto-pin
+#     their keys on the initial run without weakening strictness for known
+#     hosts. This is the OpenSSH-recommended bootstrap pattern (OpenSSH
+#     >= 7.6 — Ubuntu 24.04 ships 9.x, well past).
+#   * Net effect: trust-on-first-use for fresh hosts, strict verification
+#     thereafter. No skip-flag variable, no manual ssh-keyscan dance.
+#
+# Run:
+#   ansible-playbook site.yml --check                       # dry-run
+#   ansible-playbook site.yml                               # actual run
+#   ansible-playbook site.yml --limit lab_single_node       # one shape
+
+- name: Establish controller trust and verify host reachability
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_ssh_extra_args: "-o StrictHostKeyChecking=accept-new"
+
+  tasks:
+    - name: Verify reachability from the controller
+      ansible.builtin.ping:
