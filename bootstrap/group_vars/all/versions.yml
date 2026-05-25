@@ -49,6 +49,18 @@ kubernetes:
   apt_signing_key: null # pkgs.k8s.io/.../Release.key
 
 # ---------------------------------------------------------------------------
+# Helm — CLI used to install Cilium (L2.2) and Kyverno (L3) charts during
+# the imperative install path. Not used at GitOps runtime in L4a+
+# (Flux invokes helm via the HelmRelease CRD, bundled inside the
+# helm-controller image), but the standalone binary is still needed
+# during initial cluster bootstrap before Flux takes over.
+# ---------------------------------------------------------------------------
+helm:
+  version: null # e.g. "3.16.4"
+  binary_url: null # get.helm.sh/helm-v<version>-linux-amd64.tar.gz (tarball, not bare binary)
+  checksum: null # SHA256 of the tarball
+
+# ---------------------------------------------------------------------------
 # Networking — CNI + meta-plugin + ingress
 # ---------------------------------------------------------------------------
 cilium:
