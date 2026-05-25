@@ -1,0 +1,27 @@
+---
+# .ansible-lint — repository Ansible linting rules.
+#
+# Profile: production — the strictest profile. Surfaces every rule
+# ansible-lint can check. Anything that legitimately needs a skip lands in
+# `skip_list` below with a comment explaining why; an empty list is the
+# goal state.
+#
+# Roles are auto-discovered under bootstrap/roles/ once they exist. The
+# molecule/ template directory is excluded because it is a *template*, not
+# a real scenario — real scenarios live inside each role.
+
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .ansible/
+  - bootstrap/.venv/
+  - bootstrap/collections/
+  - bootstrap/molecule/   # template only; real scenarios land per-role in L1.1+
+
+warn_list:
+  - experimental          # surface experimental-rule findings, don't fail on them
+
+skip_list: []
+
+use_default_rules: true

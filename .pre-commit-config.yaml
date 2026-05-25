@@ -1,0 +1,59 @@
+---
+# .pre-commit-config.yaml — local + CI pre-commit hooks.
+#
+# Hooks are pinned to specific revs (verified May 2026). Updates land in
+# deliberate "chore(deps): bump pre-commit hooks" commits, never as
+# drive-by changes inside feature work.
+#
+# Usage:
+#   pre-commit install            # one-time, installs the git hook
+#   pre-commit run --all-files    # ad-hoc, runs every hook over the whole tree
+#
+# CI re-runs `pre-commit run --all-files` so local --no-verify skips can't
+# silently leak through.
+
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+default_stages: [pre-commit]
+
+repos:
+  # ---- Generic file hygiene -----------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # --unsafe lets the loader tolerate !vault / !reset / custom tags
+        # used by Ansible and SOPS-encrypted files.
+        args: [--unsafe]
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # ---- YAML style ---------------------------------------------------------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict, -c=.yamllint]
+
+  # ---- Ansible style + correctness ----------------------------------------
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v26.4.0
+    hooks:
+      - id: ansible-lint
+        # Scope to bootstrap/ so we don't pay ansible-lint's ~5s startup on
+        # every non-Ansible YAML touch. Path-based exclusion of molecule/
+        # and similar is handled in .ansible-lint.
+        files: ^bootstrap/.*\.(yaml|yml)$
+        # Override the upstream hook's python3.14 default — ansible-lint
+        # itself only requires Python >=3.10, so we use whatever python3
+        # the system ships. Ubuntu 24.04 LTS provides 3.12, well within
+        # bounds; this also avoids pinning to a Python the host may not have.
+        language_version: python3
