@@ -1,0 +1,46 @@
+---
+# bootstrap/requirements.yml
+#
+# Galaxy collections used inside playbooks (what playbooks *call*, as opposed
+# to what *runs* them — that's requirements.txt).
+#
+# Install with:
+#   cd bootstrap
+#   ansible-galaxy collection install -r requirements.yml -p ./collections
+#
+# The -p ./collections flag installs into bootstrap/collections/, matching
+# the collections_path set in ansible.cfg. ansible-galaxy does NOT honor
+# ansible.cfg for the install target — only for find/load — so the -p flag
+# is required.
+#
+# Versions pinned exactly for reproducibility. Bumps land in dedicated
+# "chore(deps)" commits with porting-guide entries reviewed.
+
+collections:
+  # General-purpose utilities used across roles. Ships modules for archives,
+  # filesystems, package managers, and dozens of niche cases. Pulled now to
+  # avoid mid-development churn.
+  - name: community.general
+    version: "13.0.0"
+
+  # POSIX system primitives — sysctl, mount, firewalld, selinux, authorized_key.
+  # Required for any Linux node hardening, which is most of bootstrap.
+  - name: ansible.posix
+    version: "2.1.0"
+
+  # Certificate and key generation. Needed for kubeadm cert work in L2 and
+  # for Nexus ACS mTLS material in L6.
+  - name: community.crypto
+    version: "3.1.0"
+
+  # Kubernetes API modules (k8s, k8s_info, helm). Needed once we touch the
+  # cluster from Ansible; pulling now means zero churn when the first
+  # k8s-touching role lands.
+  - name: kubernetes.core
+    version: "6.1.0"
+
+  # Docker modules. Required transitively by molecule-plugins[docker] —
+  # Molecule's Docker driver invokes community.docker.docker_container to
+  # provision test containers.
+  - name: community.docker
+    version: "4.6.0"
