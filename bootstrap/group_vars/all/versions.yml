@@ -1,0 +1,93 @@
+---
+# bootstrap/group_vars/all/versions.yml
+#
+# Single source of truth for component versions installed on target nodes
+# during cluster bootstrap. Sourced by every play via playbook-scoped
+# group_vars discovery (matches the `playbook_dir = .` setting in
+# ansible.cfg).
+#
+# Scope:
+#   * Cluster-layer components — container runtime, Kubernetes, CNI, CSI,
+#     ingress, policy, GitOps, registry signing — installed by playbooks
+#     onto target hosts.
+#   * Per-component metadata: version string, apt repo, GPG key, image
+#     digest, Helm chart info — whichever combination the component needs.
+#
+# Out of scope (do not add here):
+#   * Python tooling that runs the playbooks         → bootstrap/requirements.txt
+#   * Galaxy collections called by the playbooks     → bootstrap/requirements.yml
+#   * Hubble (ships with Cilium, no separate pin)
+#   * GHCR (registry service, not a versioned dep)
+#   * OS packages and kernel module versions         → role defaults
+#
+# Shape (decided in ADR-0004, to land later in L1):
+#   Grouped — each component is a mapping with the fields it actually
+#   needs. Trades slight `-e` override verbosity for keeping related
+#   metadata co-located. Roles reference values as
+#   {{ kubernetes.version }}, {{ cilium.helm_chart_version }}, etc.
+#
+# Values are `null` pending dedicated `chore(versions): pin <component>`
+# commits in L1.1+. The trailing comments document the expected source
+# (upstream apt repo, Helm chart URL, GitHub release page) so the
+# discovery work is recorded even before the pin lands.
+
+# ---------------------------------------------------------------------------
+# Container runtime
+# ---------------------------------------------------------------------------
+containerd:
+  version: null # 2.x major — affects CRI interface behaviour
+  apt_repo: null # download.docker.com or upstream binary tarball
+  apt_signing_key: null # GPG key URL paired with apt_repo
+
+# ---------------------------------------------------------------------------
+# Kubernetes control plane (kubeadm, kubelet, kubectl move together for
+# skew compliance — see kubeadm version-skew policy).
+# ---------------------------------------------------------------------------
+kubernetes:
+  version: null # e.g. "1.34.5"
+  apt_repo: null # pkgs.k8s.io/core:/stable:/v1.34/deb/
+  apt_signing_key: null # pkgs.k8s.io/.../Release.key
+
+# ---------------------------------------------------------------------------
+# Networking — CNI + meta-plugin + ingress
+# ---------------------------------------------------------------------------
+cilium:
+  version: null # kube-proxy replacement, BGP control plane, LB-IPAM
+  helm_chart_repo: null # https://helm.cilium.io/
+  helm_chart_version: null # tracks `version` above
+
+multus:
+  image_digest: null # ghcr.io/k8snetworkplumbingwg/multus-cni@sha256:...
+  manifest_url: null # thick-daemonset manifest from upstream release
+
+# ---------------------------------------------------------------------------
+# Storage — default StorageClass; replication is deferred to L4a
+# ---------------------------------------------------------------------------
+local_path_provisioner:
+  version: null # rancher/local-path-provisioner release tag
+  manifest_url: null # github.com/rancher/local-path-provisioner/releases/...
+
+# ---------------------------------------------------------------------------
+# Security & policy
+# ---------------------------------------------------------------------------
+kyverno:
+  version: null
+  helm_chart_repo: null # https://kyverno.github.io/kyverno/
+  helm_chart_version: null
+
+sops:
+  version: null # binary install (no apt repo upstream)
+  binary_url: null # github.com/getsops/sops/releases/download/...
+  checksum: null # SHA256 of the binary, verified post-download
+
+cosign:
+  version: null # binary install
+  binary_url: null # github.com/sigstore/cosign/releases/download/...
+  checksum: null # SHA256 of the binary
+
+# ---------------------------------------------------------------------------
+# GitOps
+# ---------------------------------------------------------------------------
+flux:
+  version: null # fluxcd/flux2 release tag
+  manifest_url: null # github.com/fluxcd/flux2/releases/.../install.yaml
