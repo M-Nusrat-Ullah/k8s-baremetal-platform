@@ -1,0 +1,26 @@
+# bootstrap/requirements.txt
+#
+# Python control-plane tooling for the bootstrap layer.
+# These pins govern what *runs* the playbooks (ansible-core, molecule), what
+# *lints* them (ansible-lint, yamllint), and what *guards* commits (pre-commit).
+# Versions pinned exactly (==) for reproducibility; bumps land in deliberate
+# "chore(deps)" commits with the changelog reviewed.
+#
+# Companion file: requirements.yml (Galaxy collections — what the playbooks
+# call, as opposed to what runs them).
+#
+# Setup:
+#   python3 -m venv bootstrap/.venv
+#   source bootstrap/.venv/bin/activate
+#   pip install --upgrade pip
+#   pip install -r bootstrap/requirements.txt
+#
+# Python floor is 3.12 (ansible-core 2.20 requires >=3.12). Ubuntu 24.04 LTS
+# ships 3.12.3 — within bounds.
+
+ansible-core==2.20.6
+ansible-lint==26.4.0
+molecule==26.4.0
+molecule-plugins[docker]==25.8.12
+yamllint==1.38.0
+pre-commit==4.6.0
