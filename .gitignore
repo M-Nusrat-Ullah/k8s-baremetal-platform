@@ -1,0 +1,52 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python (Ansible toolchain)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Ansible
+*.retry
+.vault_pass*
+vault-password*
+*.vault.yml.dec
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+kube.config
+
+# Secrets — never commit
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+!**/*.pub
+.env
+.envrc
+
+# Build / generated
+dist/
+build/
+*.tgz
+
+# Logs
+*.log
+
+# Local overrides
+local.yml
+local.yaml
+*.local
