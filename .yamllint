@@ -1,0 +1,42 @@
+---
+# .yamllint — repository-wide YAML linting rules.
+#
+# Style baseline is yamllint's `default`, with a few tightening adjustments
+# motivated by Ansible's known pitfalls:
+#   * Octal values (forbid both implicit `0644` and explicit `0o644`) — Ansible
+#     has historically been bitten by mode strings; force quoted strings.
+#   * Truthy-key check disabled — GitHub Actions uses `on:` as a key.
+#   * Line length raised to 160 (warning, not error) — inventory and
+#     group_vars rows are wider than 80 in practice.
+#
+# Tool-specific concerns (Ansible idioms, K8s manifest validity) are caught
+# by ansible-lint and kubeconform in their respective stages.
+
+extends: default
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+ignore: |
+  .venv/
+  .ansible/
+  bootstrap/.venv/
+  bootstrap/collections/
+  bootstrap/molecule/
