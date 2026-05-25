@@ -24,6 +24,8 @@ introducing this process.
 
 ## Index
 
-| #    | Title                         | Status   |
-| ---- | ----------------------------- | -------- |
-| 0001 | Record architecture decisions | Accepted |
+| #    | Title                                       | Status   |
+| ---- | ------------------------------------------- | -------- |
+| 0001 | Record architecture decisions               | Accepted |
+| 0002 | Repository structure                        | Accepted |
+| 0003 | Kubernetes version pin and upgrade strategy | Accepted |
