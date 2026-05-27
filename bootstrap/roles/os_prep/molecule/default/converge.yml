@@ -1,0 +1,7 @@
+---
+# Converge play: apply the os_prep role to the molecule instance.
+- name: Converge
+  hosts: all
+  become: true
+  roles:
+    - role: os_prep
