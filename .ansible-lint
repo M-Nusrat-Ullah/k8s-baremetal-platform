@@ -7,7 +7,7 @@
 # goal state.
 #
 # Roles are auto-discovered under bootstrap/roles/ once they exist. The
-# molecule/ template directory is excluded because it is a *template*, not
+# molecule-template/ directory is excluded because it is a *template*, not
 # a real scenario — real scenarios live inside each role.
 
 profile: production
@@ -17,7 +17,7 @@ exclude_paths:
   - .ansible/
   - bootstrap/.venv/
   - bootstrap/collections/
-  - bootstrap/molecule/   # template only; real scenarios land per-role in L1.1+
+  - bootstrap/molecule-template/   # template only; real scenarios land per-role in L1.1+
 
 warn_list:
   - experimental          # surface experimental-rule findings, don't fail on them

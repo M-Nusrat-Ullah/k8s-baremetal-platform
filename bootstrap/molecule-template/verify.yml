@@ -1,0 +1,22 @@
+---
+# bootstrap/molecule-template/verify.yml
+#
+# Post-converge assertions. The placeholder below uses ansible.builtin.fail
+# rather than debug so an uncustomised template fails loudly instead of
+# passing silently — silent-green tests are a serious portfolio liability.
+#
+# Replace with real ansible.builtin.assert tasks. Verifier defaults to
+# ansible in Molecule 26.x — no explicit verifier.name needed in
+# molecule.yml.
+
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Fail — replace this verify.yml with real assertions
+      ansible.builtin.fail:
+        msg: |
+          This verify.yml was copied from the molecule template and has
+          not been customised. Add ansible.builtin.assert tasks to verify
+          the role under test, then remove this fail task.
