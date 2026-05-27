@@ -1,0 +1,33 @@
+---
+# Molecule scenario `default` for the os_prep role.
+#
+# Driver: docker. Image: geerlingguy/docker-ubuntu2404-ansible (systemd-
+# enabled Ubuntu 24.04). See role README "Testing → What molecule does
+# and does not verify" for the tradeoff this driver implies.
+#
+# Why `privileged: true`: systemd-in-docker requires it for reliable
+# operation across host configurations. This is test infrastructure
+# (ephemeral, no network exposure, destroyed at end of run), not a
+# workload container. HARDENING.md applies to workloads; molecule test
+# containers are disposable. This matches the geerlingguy / debops /
+# kubespray molecule pattern.
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: os-prep-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    tmpfs:
+      - /run
+      - /tmp
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+provisioner:
+  name: ansible
+verifier:
+  name: ansible

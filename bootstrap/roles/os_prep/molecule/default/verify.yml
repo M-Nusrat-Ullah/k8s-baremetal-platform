@@ -1,0 +1,17 @@
+---
+# Verify play: assertions about the post-converge state.
+#
+# This file is a fail-loud stub at L1.1.0. Each subsequent slice
+# (L1.1.1 onward) replaces or appends real assert tasks against the
+# artifacts that slice produces. The fail-loud stub exists because
+# a verify.yml that silently passes is worse than no verify at all —
+# it gives false confidence.
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Placeholder — verify.yml must be customised by L1.1.1
+      ansible.builtin.fail:
+        msg: >-
+          molecule verify.yml has not yet been customised for os_prep.
+          Real assertions land in L1.1.1 (swap).
