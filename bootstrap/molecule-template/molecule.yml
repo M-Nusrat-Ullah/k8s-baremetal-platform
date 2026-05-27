@@ -1,0 +1,41 @@
+---
+# bootstrap/molecule-template/molecule.yml
+#
+# TEMPLATE — this file is not itself a runnable scenario. Copy the
+# enclosing molecule-template/ directory into a role's molecule/<name>/
+# directory and edit. See bootstrap/molecule-template/README.md for the
+# workflow.
+#
+# Driver: Docker, via geerlingguy's Ubuntu 24.04 systemd-enabled image.
+# REPLACE the :latest tag with a digest pin (sha256:...) once you've
+# validated the image locally. Bump in a deliberate
+# "chore(molecule): bump <role> base image" commit.
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  # systemd-in-container requires privileged + cgroup mounts + tmpfs for
+  # /run and /tmp. cgroupns_mode=host is required on cgroups v2 hosts
+  # (Ubuntu 22.04+), which is everything modern.
+  - name: instance
+    image: geerlingguy/docker-ubuntu2404-ansible:latest # REPLACE with sha256:... digest
+    pre_build_image: true
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      # Per-task timing surfaces slow tasks during role development.
+      callbacks_enabled: ansible.posix.profile_tasks

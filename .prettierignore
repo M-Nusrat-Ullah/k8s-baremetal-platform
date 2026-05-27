@@ -1,0 +1,18 @@
+# .prettierignore — files Prettier (and Prettier-style YAML formatters in
+# the VS Code Marketplace) misclassify. Adding them here prevents
+# format-on-save from rewriting their structure.
+#
+# .ansible-lint, .yamllint, and .pre-commit-config.yaml all start with #
+# comments and get misread as Markdown by formatters that auto-detect
+# language from content rather than filename. yamllint and ansible-lint
+# (our actual linters) are the authoritative formatters for these files.
+
+.ansible-lint
+.yamllint
+.pre-commit-config.yaml
+
+# Generated paths
+.venv/
+bootstrap/.venv/
+bootstrap/collections/
+.ansible/

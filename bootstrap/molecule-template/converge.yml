@@ -1,0 +1,13 @@
+---
+# bootstrap/molecule-template/converge.yml
+#
+# Invokes the role under test. REPLACE `roles_under_test` with the actual
+# role name. If the role under test depends on other roles in this repo,
+# list them before it in the `roles:` block.
+
+- name: Converge
+  hosts: all
+  gather_facts: true
+
+  roles:
+    - role: roles_under_test # REPLACE with the actual role name
