@@ -73,6 +73,7 @@ the layer is correctly set up.
 
 ## Layout
 
+```text
 bootstrap/
 ├── ansible.cfg # runtime configuration
 ├── group_vars/
@@ -86,6 +87,7 @@ bootstrap/
 ├── requirements.yml # Galaxy collections
 ├── site.yml # top-level orchestration playbook
 └── README.md # this file
+```
 
 `.venv/` and `collections/` are local-only and excluded from version
 control. The `roles/` and `molecule/` directories will appear as L1.0
