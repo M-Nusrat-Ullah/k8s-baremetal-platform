@@ -1,0 +1,8 @@
+---
+# Handlers for the os_prep role.
+#
+# Handlers run at end-of-play (or earlier on `meta: flush_handlers`) and
+# only when explicitly notified by a task. Slices that need a service
+# reload or restart append handlers here.
+#
+# No handlers defined yet — populated by subsequent slices.

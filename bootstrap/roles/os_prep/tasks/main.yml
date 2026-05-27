@@ -1,0 +1,14 @@
+---
+# os_prep — OS-level preparation for Kubernetes nodes.
+#
+# Per-area task files are imported here with tags. Each task file owns one
+# concern; this dispatcher keeps the role flat and the tag surface explicit.
+#
+# Selective execution:
+#   ansible-playbook site.yml --tags sysctl
+#   ansible-playbook site.yml --tags kernel,sysctl
+#   ansible-playbook site.yml --skip-tags chrony
+#
+# import_tasks blocks are added per L1.1.x slice as each task file lands.
+# Until then, this role is a no-op: `molecule converge` runs cleanly and
+# reports zero changed tasks.

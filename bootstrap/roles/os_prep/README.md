@@ -1,0 +1,109 @@
+# os_prep
+
+OS-level preparation for Kubernetes control-plane and worker nodes:
+swap disable, kernel modules, sysctl tuning, time sync via chrony,
+AppArmor verification, and CIS-recommended unused-filesystem-module
+blacklist.
+
+This role is idempotent and safe to re-run on existing nodes. It is
+the first role applied by `bootstrap/site.yml` against every node,
+regardless of deploy shape (`lab-single-node`, `edge-site`,
+`ha-bare-metal`).
+
+## Requirements
+
+- Ansible 2.20 or newer (pinned by `bootstrap/requirements.txt`).
+- Target hosts: Ubuntu 24.04 LTS (`noble`). Other versions are out of
+  scope — see [Platform scope](#platform-scope).
+- Privilege escalation: the role uses `become: true`. The connecting
+  user needs passwordless sudo, or invocation with `--ask-become-pass`.
+
+## Platform scope
+
+Ubuntu 24.04 only. The repo's reproducibility pillar is at odds with
+claiming multi-distro support without testing against each. Broadening
+platform coverage requires a matching molecule platform and CI lane;
+support is declared in `meta/main.yml` only after both exist.
+
+## Role variables
+
+Variables are populated as each `L1.1.x` slice lands. Empty until
+L1.1.1.
+
+| Variable                | Default | Owned by | Description |
+| ----------------------- | ------- | -------- | ----------- |
+| _(populated by L1.1.1)_ |         |          |             |
+
+## Dependencies
+
+None.
+
+## Tags
+
+The role exposes per-concern tags so the operator can run a subset:
+
+| Tag        | Concern                                                        | Populated by |
+| ---------- | -------------------------------------------------------------- | ------------ |
+| `swap`     | Disable swap, remove fstab entries, neutralise cloud-init swap | L1.1.1       |
+| `kernel`   | Load and persist required kernel modules                       | L1.1.2       |
+| `sysctl`   | Apply Kubernetes-required sysctl values                        | L1.1.3       |
+| `chrony`   | Install and enable chrony for time sync                        | L1.1.4       |
+| `apparmor` | Verify AppArmor is enabled and enforcing                       | L1.1.5       |
+| `cis`      | Blacklist CIS-recommended unused filesystem modules            | L1.1.6       |
+
+## Example playbook
+
+```yaml
+- hosts: all
+  become: true
+  roles:
+    - role: os_prep
+```
+
+Selective execution:
+
+```bash
+ansible-playbook site.yml --tags sysctl,kernel
+ansible-playbook site.yml --skip-tags chrony
+```
+
+## Testing
+
+Molecule scenario `default` exercises the role in a systemd-enabled
+Docker container (`geerlingguy/docker-ubuntu2404-ansible`).
+
+```bash
+cd bootstrap/roles/os_prep
+molecule converge      # apply the role
+molecule verify        # assert expected artifacts are present
+molecule idempotence   # confirm a second converge reports zero changes
+molecule destroy
+```
+
+### What molecule does and does not verify
+
+Docker containers do not provide a real host kernel. Molecule's job
+for this role is to validate **artifact content and idempotence**, not
+the runtime kernel behaviour those artifacts produce:
+
+- **Verified by molecule:** files in `/etc/sysctl.d/`,
+  `/etc/modules-load.d/`, `/etc/modprobe.d/` have the expected content;
+  chrony package and unit state; a second converge reports zero changed
+  tasks.
+- **Not verified by molecule:** kernel modules actually loading into the
+  host kernel; `swapoff` removing entries from `/proc/swaps`; AppArmor
+  enforcement state on the host.
+
+Assertions that require a real kernel are guarded with
+`when: ansible_virtualization_type != 'docker'` so they skip inside
+molecule and run during real `site.yml` execution. Runtime kernel
+behaviour is covered by cluster-bring-up smoke tests in a later layer,
+not by this role's molecule scenario.
+
+## License
+
+Apache-2.0. See repository [`LICENSE`](../../../LICENSE).
+
+## Author
+
+M Nusrat Ullah.
