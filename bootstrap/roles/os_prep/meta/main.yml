@@ -1,0 +1,26 @@
+---
+# Metadata for the os_prep role. Consumed by ansible-galaxy tooling and by
+# any future roles that declare dependencies on this one. Galaxy publication
+# is not currently planned; fields are populated for forward compatibility
+# and self-documentation.
+galaxy_info:
+  role_name: os_prep
+  namespace: k8s_baremetal_platform
+  author: M Nusrat Ullah
+  description: >-
+    OS preparation for Kubernetes control-plane and worker nodes:
+    swap disable, kernel modules, sysctl tuning, time sync via chrony,
+    AppArmor verification, and CIS-recommended unused-filesystem-module
+    blacklist. Idempotent; safe to re-run on existing nodes.
+  license: Apache-2.0
+  min_ansible_version: "2.20"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble # 24.04 LTS only — see role README for scope rationale
+  galaxy_tags:
+    - kubernetes
+    - bootstrap
+    - hardening
+    - cis
+dependencies: []

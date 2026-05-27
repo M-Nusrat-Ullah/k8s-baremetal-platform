@@ -1,0 +1,8 @@
+---
+# Default variables for the os_prep role.
+#
+# Override from inventory group_vars, host_vars, or play vars. This file
+# is the role's public configuration surface; the README's variables table
+# is authoritative for what each variable does.
+#
+# Variables are appended per L1.1.x slice. Empty until L1.1.1 (swap).
