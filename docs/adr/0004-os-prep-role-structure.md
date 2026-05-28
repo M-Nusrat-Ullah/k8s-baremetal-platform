@@ -71,7 +71,7 @@ a node is added, replaced, or recovered. A role that reports `changed`
 on every run trains operators to ignore change reports — which means real
 unintended drift will be ignored too.
 
-## Alternatives considered (Decision 2)
+### Alternatives considered
 
 **Make idempotence an aspirational goal, not a gate.**
 Rejected. "Aspirational" idempotence decays the moment the gate is removed.
