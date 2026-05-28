@@ -16,3 +16,10 @@
 bootstrap/.venv/
 bootstrap/collections/
 .ansible/
+
+# Markdown — prettier on prose reformats emphasis style (* → _), can
+# rewrap lines mid-edit, and occasionally mangles tables. ADRs and
+# READMEs are authored by humans for humans; no automated formatter
+# adds value here.
+*.md
+**/*.md
