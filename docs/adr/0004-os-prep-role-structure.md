@@ -5,6 +5,7 @@
 - **Layer:** L1.1
 - **Supersedes:** none
 - **Superseded by:** none
+- **Amended by:** ADR-0005 (corrects the Decision 2 swap module prescription)
 
 ## Context
 
