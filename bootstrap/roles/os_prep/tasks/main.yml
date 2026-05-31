@@ -8,7 +8,9 @@
 #   ansible-playbook site.yml --tags sysctl
 #   ansible-playbook site.yml --tags kernel,sysctl
 #   ansible-playbook site.yml --skip-tags chrony
-#
 # import_tasks blocks are added per L1.1.x slice as each task file lands.
-# Until then, this role is a no-op: `molecule converge` runs cleanly and
-# reports zero changed tasks.
+
+- name: Disable swap (kubelet failSwapOn prerequisite)
+  ansible.builtin.import_tasks: swap.yml
+  tags:
+    - swap

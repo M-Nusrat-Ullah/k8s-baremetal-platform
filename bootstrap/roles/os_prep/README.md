@@ -32,7 +32,7 @@ L1.1.1.
 
 | Variable                | Default | Owned by | Description |
 | ----------------------- | ------- | -------- | ----------- |
-| _(populated by L1.1.1)_ |         |          |             |
+| `os_prep_swap_disable`  | `true`  | `os_prep`| Disable swap: comment swap entries in `/etc/fstab` + runtime `swapoff -a`. Required for the default kubelet posture (`failSwapOn: true`, `NodeSwap` off). Set `false` only on nodes deliberately configured for `NodeSwap`. |
 
 ## Dependencies
 
@@ -44,7 +44,7 @@ The role exposes per-concern tags so the operator can run a subset:
 
 | Tag        | Concern                                                        | Populated by |
 | ---------- | -------------------------------------------------------------- | ------------ |
-| `swap`     | Disable swap, remove fstab entries, neutralise cloud-init swap | L1.1.1       |
+| `swap`     | Disable swap (comment fstab entries + runtime swapoff)         | L1.1.1       |
 | `kernel`   | Load and persist required kernel modules                       | L1.1.2       |
 | `sysctl`   | Apply Kubernetes-required sysctl values                        | L1.1.3       |
 | `chrony`   | Install and enable chrony for time sync                        | L1.1.4       |
