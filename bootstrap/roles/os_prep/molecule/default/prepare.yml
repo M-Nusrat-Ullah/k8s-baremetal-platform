@@ -1,0 +1,31 @@
+---
+# Prepare play: seed test fixtures before converge.
+#
+# Molecule's base image ships an /etc/fstab with no swap entry, so the
+# converge-time swap-comment task would run against nothing — proving only
+# that the task is wired, not that its regex actually matches a real swap
+# line. We seed representative swap entries here so converge has something
+# to act on and verify can prove it was commented. This is the only place
+# the swap regex is exercised against real input (a container cannot carry
+# real active swap). See docs/adr/0005.
+#
+# Two classes of fixture:
+#   1. Real swap entries (fstype field == swap) — MUST be commented.
+#   2. Decoys whose name/options merely contain "swap" — MUST survive
+#      uncommented, proving the regex anchors on the fstype column.
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Prepare | seed swap entries into /etc/fstab
+      ansible.builtin.blockinfile:
+        path: /etc/fstab
+        create: true
+        mode: "0644"
+        marker: "# {mark} MOLECULE SWAP FIXTURE"
+        block: |
+          /swap.img       none    swap    sw      0   0
+          UUID=deadbeef-0000-1111-2222-333344445555 none swap sw 0 0
+          /dev/mapper/vg0-swap none swap pri=10 0 0
+          /dev/sdb1       /swapdata   ext4    defaults    0   2
+          /dev/sdc1       /data       ext4    rw,swapfoo  0   2

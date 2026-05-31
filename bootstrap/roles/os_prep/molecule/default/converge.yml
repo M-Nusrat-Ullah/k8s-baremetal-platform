@@ -3,5 +3,10 @@
 - name: Converge
   hosts: all
   become: true
+  gather_facts: true # os_prep gates tasks on swaptotal + virt type
+  pre_tasks:
+    - name: Converge | show detected virtualization type (confirms swap guard)
+      ansible.builtin.debug:
+        var: ansible_facts['virtualization_type']
   roles:
     - role: os_prep

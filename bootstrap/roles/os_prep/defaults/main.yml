@@ -4,5 +4,10 @@
 # Override from inventory group_vars, host_vars, or play vars. This file
 # is the role's public configuration surface; the README's variables table
 # is authoritative for what each variable does.
-#
-# Variables are appended per L1.1.x slice. Empty until L1.1.1 (swap).
+
+# --- swap (L1.1.1) ----------------------------------------------------------
+# Disable swap on the node. Required for the default kubelet posture
+# (failSwapOn: true, NodeSwap off). Set false ONLY on a node you have
+# deliberately configured for NodeSwap. See docs/adr/0005.
+# Variables are appended per L1.1.x slice.
+os_prep_swap_disable: true

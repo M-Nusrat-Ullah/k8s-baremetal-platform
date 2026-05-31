@@ -1,0 +1,35 @@
+---
+# Disable swap so the node matches the default kubelet posture
+# (failSwapOn: true, NodeSwap feature gate off). See docs/adr/0005.
+#
+# Two concerns, deliberately separate:
+#   1. Persistent — comment any swap entry in /etc/fstab (src-agnostic).
+#   2. Runtime    — swapoff -a, but only on a real host with swap active.
+# ansible.posix.mount is intentionally NOT used here: it keys swap by `src`
+# (which varies per shape) and does not call swapoff (the swap-management
+# PR upstream is unmerged). See ADR-0005 "Alternatives considered".
+
+- name: Comment out any swap entry in /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    # Anchor on the fstype column (3rd field == swap), never a bare "swap"
+    # substring, so /swapdata mount points and option strings don't match.
+    # Only uncommented lines match -> idempotent (the rewritten line starts
+    # with '#', which [^#\s] rejects on re-run).
+    regexp: '^\s*([^#\s]\S*\s+\S+\s+swap(\s.*)?)$'
+    replace: '# [os-prep] swap disabled - see ADR-0005: \1'
+    backup: true
+  become: true
+  when: os_prep_swap_disable | bool
+
+- name: Disable swap at runtime
+  ansible.builtin.command:
+    cmd: swapoff -a
+  changed_when: true # guarded to only run when swap is actually on
+  become: true
+  when:
+    - os_prep_swap_disable | bool
+    - ansible_facts['swaptotal_mb'] | default(0) | int > 0
+    # Containers read the host's /proc/meminfo, so swaptotal can be > 0 inside
+    # Molecule; without this guard swapoff -a would hit the host's swap.
+    - ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

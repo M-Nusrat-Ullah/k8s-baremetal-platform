@@ -1,17 +1,57 @@
 ---
-# Verify play: assertions about the post-converge state.
-#
-# This file is a fail-loud stub at L1.1.0. Each subsequent slice
-# (L1.1.1 onward) replaces or appends real assert tasks against the
-# artifacts that slice produces. The fail-loud stub exists because
-# a verify.yml that silently passes is worse than no verify at all —
-# it gives false confidence.
+# Molecule verification for the os_prep role. Assertions accrue per slice
+# (L1.1.x); this replaces the L1.1.0 fail-loud stub. Each slice proves
+# artifact content here; idempotence is proven by the `molecule idempotence`
+# step (a second converge reporting changed=0), not asserted in this file.
 - name: Verify
   hosts: all
-  gather_facts: false
+  gather_facts: true
   tasks:
-    - name: Placeholder — verify.yml must be customised by L1.1.1
-      ansible.builtin.fail:
-        msg: >-
-          molecule verify.yml has not yet been customised for os_prep.
-          Real assertions land in L1.1.1 (swap).
+    # --- swap (L1.1.1) ------------------------------------------------------
+    - name: Verify | read /etc/fstab
+      ansible.builtin.slurp:
+        src: /etc/fstab
+      register: os_prep_fstab
+
+    - name: Verify | no uncommented swap entry remains in /etc/fstab
+      ansible.builtin.assert:
+        that:
+          # Active swap = an uncommented line whose 3rd whitespace field is
+          # exactly "swap". Column-anchored, so /swapdata mount points and
+          # "swap"-containing option strings don't false-match.
+          - >-
+            (os_prep_fstab.content | b64decode).splitlines()
+            | map('trim')
+            | reject('match', '^#')
+            | select('match', '^\S+\s+\S+\s+swap(\s|$)')
+            | list | length == 0
+        fail_msg: "Uncommented swap entry still present in /etc/fstab."
+        success_msg: "No active swap entries in /etc/fstab."
+
+    - name: Verify | non-swap lines containing "swap" remain uncommented
+      ansible.builtin.assert:
+        that:
+          # Both decoys (/swapdata mount point; swapfoo option string) must
+          # still be present and uncommented. If the regex over-matched on
+          # the "swap" substring, these would be commented and the count
+          # would drop below 2. Proves column-anchoring, not just absence.
+          - >-
+            (os_prep_fstab.content | b64decode).splitlines()
+            | map('trim')
+            | reject('match', '^#')
+            | select('search', 'swap')
+            | list | length == 2
+        fail_msg: >-
+          A non-swap line containing "swap" was wrongly commented; the
+          fstype-column anchor failed.
+        success_msg: "Swap-lookalike lines correctly left untouched."
+
+    - name: Verify | runtime swap is fully disabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['swaptotal_mb'] | default(0) | int == 0
+        fail_msg: >-
+          swaptotal_mb={{ ansible_facts['swaptotal_mb'] | default('undef') }};
+          runtime swap still active.
+        success_msg: "Runtime swap total is 0."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
