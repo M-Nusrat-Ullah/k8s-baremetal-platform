@@ -1,7 +1,11 @@
 # ADR-0002: Repository structure
 
-**Status:** Accepted, 2026-05-24
-**Deciders:** M Nusrat Ullah
+- **Status:** Accepted
+- **Date:** 2026-05-24
+- **Deciders:** M Nusrat Ullah
+- **Layer:** —
+- **Supersedes:** none
+- **Superseded by:** none
 
 ## Context
 

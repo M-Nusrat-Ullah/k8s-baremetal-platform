@@ -1,7 +1,12 @@
 # ADR-0001: Record architecture decisions
 
-**Status:** Accepted, 2026-05-24
-**Deciders:** M Nusrat Ullah
+- **Status:** Accepted
+- **Date:** 2026-05-24
+- **Deciders:** M Nusrat Ullah
+- **Layer:** —
+- **Supersedes:** none
+- **Superseded by:** none
+- **Amended by:** ADR-0006 (format & metadata convention)
 
 ## Context
 

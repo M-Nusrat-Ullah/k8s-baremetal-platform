@@ -1,7 +1,8 @@
-# ADR-0005 — Swap disable strategy
+# ADR-0005: Swap disable strategy
 
 - **Status:** Accepted
 - **Date:** 2026-05-29
+- **Deciders:** M Nusrat Ullah
 - **Layer:** L1.1
 - **Supersedes:** none
 - **Superseded by:** none

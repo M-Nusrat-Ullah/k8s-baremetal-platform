@@ -1,7 +1,8 @@
-# ADR-0004 — `os_prep` role structure and idempotence as design rule
+# ADR-0004: `os_prep` role structure and idempotence as design rule
 
 - **Status:** Accepted
 - **Date:** 2026-05-28
+- **Deciders:** M Nusrat Ullah
 - **Layer:** L1.1
 - **Supersedes:** none
 - **Superseded by:** none
