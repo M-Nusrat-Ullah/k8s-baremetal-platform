@@ -13,6 +13,7 @@
 # kubespray molecule pattern.
 dependency:
   name: galaxy
+  enabled: false
 driver:
   name: docker
 platforms:
@@ -29,5 +30,13 @@ platforms:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
 provisioner:
   name: ansible
+  config_options:
+    defaults:
+      # Point converge/verify at the repo's pinned collections so Molecule tests
+      # against the same versions as real site.yml runs. Absolute path built
+      # from the (absolute) scenario dir; the four ../ climb
+      # molecule/default -> molecule -> os_prep -> roles -> bootstrap, then into
+      # collections/ (the dir that contains ansible_collections/).
+      collections_path: "${MOLECULE_SCENARIO_DIRECTORY}/../../../../collections"
 verifier:
   name: ansible

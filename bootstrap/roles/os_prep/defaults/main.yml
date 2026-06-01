@@ -11,3 +11,21 @@
 # deliberately configured for NodeSwap. See docs/adr/0005.
 # Variables are appended per L1.1.x slice.
 os_prep_swap_disable: true
+
+# --- Kernel modules -------------------------------------------------------
+# Kernel modules required by the container runtime (containerd) and kubeadm,
+# loaded at boot via /etc/modules-load.d/k8s.conf and into the running kernel
+# via modprobe.
+#
+# This is the node-prerequisite set ONLY. Do NOT add workload-specific modules
+# here (e.g. xfrm/IPsec for a SecGW, DPDK, conntrack tuning for a UPF). Those
+# belong to the workload that needs them and must be tracked in that workload's
+# PRIVILEGED_EXCEPTIONS entry -- not loaded on every node by os_prep.
+#
+#   overlay       containerd overlayfs snapshotter
+#   br_netfilter  creates the net.bridge.bridge-nf-call-* sysctl keys (set in
+#                 the L1.1.3 sysctl slice) and satisfies the kubeadm preflight
+#                 check. NOT required by Cilium's eBPF datapath -- see ADR-0006.
+os_prep_kernel_modules:
+  - overlay
+  - br_netfilter

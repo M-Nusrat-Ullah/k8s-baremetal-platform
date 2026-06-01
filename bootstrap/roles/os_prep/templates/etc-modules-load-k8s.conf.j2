@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+# Kernel modules required by containerd + kubeadm, loaded at boot by
+# systemd-modules-load.service. Managed by the os_prep role
+# (tasks/kernel_modules.yml). Do not edit by hand -- changes will be
+# overwritten on the next Ansible run.
+
+{% for module in os_prep_kernel_modules %}
+{{ module }}
+{% endfor %}
