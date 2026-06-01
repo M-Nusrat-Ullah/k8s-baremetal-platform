@@ -27,12 +27,12 @@ support is declared in `meta/main.yml` only after both exist.
 
 ## Role variables
 
-Variables are populated as each `L1.1.x` slice lands. Empty until
-L1.1.1.
+Variables are populated as each `L1.1.x` slice lands.
 
 | Variable                | Default | Owned by | Description |
 | ----------------------- | ------- | -------- | ----------- |
 | `os_prep_swap_disable`  | `true`  | `os_prep`| Disable swap: comment swap entries in `/etc/fstab` + runtime `swapoff -a`. Required for the default kubelet posture (`failSwapOn: true`, `NodeSwap` off). Set `false` only on nodes deliberately configured for `NodeSwap`. |
+| `os_prep_kernel_modules` | `[overlay, br_netfilter]` | `os_prep` | Kernel modules loaded at boot via `/etc/modules-load.d/k8s.conf` and into the running kernel via `modprobe`. The containerd + kubeadm prerequisite set only; workload modules belong to their workload, not here. See `docs/adr/0007`. |
 
 ## Dependencies
 
@@ -95,10 +95,8 @@ the runtime kernel behaviour those artifacts produce:
   enforcement state on the host.
 
 Assertions that require a real kernel are guarded with
-`when: ansible_virtualization_type != 'docker'` so they skip inside
-molecule and run during real `site.yml` execution. Runtime kernel
-behaviour is covered by cluster-bring-up smoke tests in a later layer,
-not by this role's molecule scenario.
+`when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']`
+so they skip inside molecule and run during real `site.yml` execution.
 
 ## License
 

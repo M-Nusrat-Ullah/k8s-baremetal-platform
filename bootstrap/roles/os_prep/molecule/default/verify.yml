@@ -6,6 +6,8 @@
 - name: Verify
   hosts: all
   gather_facts: true
+  vars_files:
+    - ../../defaults/main.yml
   tasks:
     # --- swap (L1.1.1) ------------------------------------------------------
     - name: Verify | read /etc/fstab
@@ -54,4 +56,49 @@
           swaptotal_mb={{ ansible_facts['swaptotal_mb'] | default('undef') }};
           runtime swap still active.
         success_msg: "Runtime swap total is 0."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    # --- kernel modules (L1.1.2) --------------------------------------------
+    - name: Verify | stat /etc/modules-load.d/k8s.conf
+      ansible.builtin.stat:
+        path: /etc/modules-load.d/k8s.conf
+      register: os_prep_modules_file
+
+    - name: Verify | modules-load file exists and is mode 0644
+      ansible.builtin.assert:
+        that:
+          - os_prep_modules_file.stat.exists
+          - os_prep_modules_file.stat.mode == "0644"
+        fail_msg: "/etc/modules-load.d/k8s.conf missing or not mode 0644."
+        success_msg: "/etc/modules-load.d/k8s.conf present, mode 0644."
+
+    - name: Verify | read /etc/modules-load.d/k8s.conf
+      ansible.builtin.slurp:
+        src: /etc/modules-load.d/k8s.conf
+      register: os_prep_modules_conf
+
+    - name: Verify | modules-load file lists every required module
+      ansible.builtin.assert:
+        that:
+          - item in (os_prep_modules_conf.content | b64decode)
+        fail_msg: "{{ item }} absent from /etc/modules-load.d/k8s.conf."
+        success_msg: "{{ item }} present in /etc/modules-load.d/k8s.conf."
+      loop: "{{ os_prep_kernel_modules }}"
+
+    # Real-kernel checks: /proc/modules only reflects modprobe, which is guarded
+    # out of containers. These skip under molecule and run during real site.yml
+    # execution (and the deferred L1.1.7 reboot smoke test).
+    - name: Verify | read /proc/modules from the running kernel
+      ansible.builtin.command: cat /proc/modules
+      register: os_prep_proc_modules
+      changed_when: false
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | every required module is loaded in the running kernel
+      ansible.builtin.assert:
+        that:
+          - (item ~ ' ') in os_prep_proc_modules.stdout
+        fail_msg: "{{ item }} is not loaded (absent from /proc/modules)."
+        success_msg: "{{ item }} is loaded in the running kernel."
+      loop: "{{ os_prep_kernel_modules }}"
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

@@ -1,0 +1,39 @@
+---
+# tasks/kernel_modules.yml
+#
+# Load and persist the kernel modules required by the container runtime
+# (containerd) and kubeadm. Two concerns are split deliberately, mirroring
+# tasks/swap.yml:
+#
+#   * Artifact  -> /etc/modules-load.d/k8s.conf, read at boot by
+#                  systemd-modules-load.service. Pure file content with no
+#                  kernel interaction, so it runs everywhere (including the
+#                  Molecule container), is idempotence-checked, and is asserted
+#                  in verify.yml.
+#   * Runtime   -> modprobe each module into the *current* kernel. This needs a
+#                  real, writable kernel; containers share the host kernel and
+#                  cannot load modules, so it is guarded out of containers.
+#
+# The module set lives in defaults/main.yml (os_prep_kernel_modules) together
+# with the guard-rail note explaining why workload modules do NOT belong here.
+
+- name: Persist required kernel modules across reboots
+  ansible.builtin.template:
+    src: etc-modules-load-k8s.conf.j2
+    dest: /etc/modules-load.d/k8s.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load required kernel modules into the running kernel
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ os_prep_kernel_modules }}"
+  # modprobe needs a real kernel. virtualization_type is 'docker' under
+  # Molecule (geerlingguy image), so this skips there and runs on real hosts.
+  # The persist task above is what guarantees presence after a reboot,
+  # independent of this task.
+  when: >-
+    ansible_facts['virtualization_type'] not in
+    ['docker', 'podman', 'container', 'containerd']
