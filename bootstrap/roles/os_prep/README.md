@@ -33,6 +33,8 @@ Variables are populated as each `L1.1.x` slice lands.
 | ----------------------- | ------- | -------- | ----------- |
 | `os_prep_swap_disable`  | `true`  | `os_prep`| Disable swap: comment swap entries in `/etc/fstab` + runtime `swapoff -a`. Required for the default kubelet posture (`failSwapOn: true`, `NodeSwap` off). Set `false` only on nodes deliberately configured for `NodeSwap`. |
 | `os_prep_kernel_modules` | `[overlay, br_netfilter]` | `os_prep` | Kernel modules loaded at boot via `/etc/modules-load.d/k8s.conf` and into the running kernel via `modprobe`. The containerd + kubeadm prerequisite set only; workload modules belong to their workload, not here. See `docs/adr/0007`. |
+| `os_prep_sysctl_settings` | `{net.ipv4.ip_forward: "1", net.bridge.bridge-nf-call-iptables: "1", net.bridge.bridge-nf-call-ip6tables: "1"}` | `os_prep` | Kernel sysctls written to `os_prep_sysctl_file` and applied to the running kernel on real hosts. The Kubernetes node-prerequisite set only; `rp_filter`, IPv6 forwarding, and node-tuning sysctls are deliberately excluded. See `docs/adr/0009`. |
+| `os_prep_sysctl_file` | `/etc/sysctl.d/99-k8s.conf` | `os_prep` | Drop-in path for the sysctl set. The `99-` prefix applies it after the distribution defaults in `/usr/lib/sysctl.d/`. |
 
 ## Dependencies
 
