@@ -102,3 +102,67 @@
         success_msg: "{{ item }} is loaded in the running kernel."
       loop: "{{ os_prep_kernel_modules }}"
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    # --- sysctl (L1.1.3) ----------------------------------------------------
+    - name: Verify | stat the sysctl drop-in
+      ansible.builtin.stat:
+        path: "{{ os_prep_sysctl_file }}"
+      register: os_prep_sysctl_file_stat
+
+    # Mode is intentionally NOT asserted: ansible.posix.sysctl owns this file
+    # and exposes no mode option (unlike the kernel_modules template, which
+    # sets 0644 itself). We assert what we control: existence and content.
+    - name: Verify | sysctl drop-in exists
+      ansible.builtin.assert:
+        that:
+          - os_prep_sysctl_file_stat.stat.exists
+        fail_msg: "{{ os_prep_sysctl_file }} does not exist."
+        success_msg: "{{ os_prep_sysctl_file }} present."
+
+    - name: Verify | read the sysctl drop-in
+      ansible.builtin.slurp:
+        src: "{{ os_prep_sysctl_file }}"
+      register: os_prep_sysctl_conf
+
+    - name: Verify | drop-in persists every required key with its value
+      ansible.builtin.assert:
+        that:
+          # Spacing-tolerant (\s*=\s*) and anchored. regex_escape on the key
+          # because the dots would otherwise match any character. length == 1
+          # also catches a duplicated line.
+          - >-
+            (os_prep_sysctl_conf.content | b64decode).splitlines()
+            | map('trim')
+            | select('match', '^' ~ (item.key | regex_escape) ~ '\s*=\s*' ~ (item.value | regex_escape) ~ '$')
+            | list | length == 1
+        fail_msg: "{{ item.key }} = {{ item.value }} not found exactly once in {{ os_prep_sysctl_file }}."
+        success_msg: "{{ item.key }} = {{ item.value }} present in {{ os_prep_sysctl_file }}."
+      loop: "{{ os_prep_sysctl_settings | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    # Real-kernel checks: live /proc/sys values only reflect the guarded set +
+    # reload, which is skipped in containers (and the net.bridge.* keys do not
+    # exist there without br_netfilter). These skip under Molecule and run
+    # during real site.yml execution and the deferred L1.1.7 reboot smoke test.
+    - name: Verify | read live sysctl values from /proc/sys
+      ansible.builtin.slurp:
+        src: "/proc/sys/{{ item.key | replace('.', '/') }}"
+      register: os_prep_sysctl_live
+      loop: "{{ os_prep_sysctl_settings | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | every required sysctl is live in the running kernel
+      ansible.builtin.assert:
+        that:
+          - (item.content | b64decode | trim) == item.item.value
+        fail_msg: >-
+          {{ item.item.key }} is {{ item.content | b64decode | trim }}
+          in /proc/sys, expected {{ item.item.value }}.
+        success_msg: "{{ item.item.key }} is {{ item.item.value }} in the running kernel."
+      loop: "{{ os_prep_sysctl_live.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

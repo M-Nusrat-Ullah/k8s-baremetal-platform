@@ -1,0 +1,42 @@
+---
+# tasks/sysctl.yml
+#
+# Apply the Kubernetes-required kernel sysctls. Structured like
+# tasks/kernel_modules.yml: one source-of-truth variable
+# (os_prep_sysctl_settings) drives both persistence and runtime application,
+# and the real-kernel action is guarded out of containers.
+#
+#   * Persistence -> ansible.posix.sysctl writes each key into the single
+#                    drop-in os_prep_sysctl_file. Pure file management, so it
+#                    runs everywhere (including the Molecule container), is
+#                    idempotence-checked, and is asserted in verify.yml.
+#   * Runtime     -> the same module sets the live value (sysctl -w) and
+#                    reloads. This needs a real, writable kernel, AND the
+#                    net.bridge.* keys do not exist until br_netfilter is
+#                    loaded (L1.1.2), so it is guarded out of containers. The
+#                    drop-in is what guarantees the values after a reboot,
+#                    independent of this step.
+#
+# ADR-0004 mandates ansible.posix.sysctl with sysctl_file over a hand-written
+# file plus `sysctl -p` (a forbidden command task), so this slice ships no
+# template: the module owns the file. See docs/adr/0009 for the sysctl set and
+# the deliberately excluded keys (rp_filter, IPv6 forwarding, node tuning).
+
+- name: Determine whether sysctls can be applied to the running kernel
+  ansible.builtin.set_fact:
+    os_prep_sysctl_apply_live: "{{ ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd'] }}"
+  # virtualization_type is 'docker' under Molecule (geerlingguy image): persist
+  # the drop-in there but skip the live set + reload. Real hosts get both.
+  # Mirrors the modprobe guard in tasks/kernel_modules.yml.
+
+- name: Persist and apply Kubernetes-required sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: "{{ os_prep_sysctl_file }}"
+    sysctl_set: "{{ os_prep_sysctl_apply_live | bool }}"
+    reload: "{{ os_prep_sysctl_apply_live | bool }}"
+    state: present
+  loop: "{{ os_prep_sysctl_settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"

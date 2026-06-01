@@ -22,3 +22,12 @@
   ansible.builtin.import_tasks: kernel_modules.yml
   tags:
     - kernel
+
+# Ordering: this import MUST stay below the kernel_modules import above.
+# br_netfilter (loaded there) creates the net.bridge.bridge-nf-call-* keys this
+# slice sets; they do not exist in /proc/sys until the module is loaded. See
+# the do-not-reorder note above the kernel_modules import.
+- name: Apply Kubernetes-required sysctl values
+  ansible.builtin.import_tasks: sysctl.yml
+  tags:
+    - sysctl
