@@ -36,7 +36,8 @@ kube.config
 *.pfx
 !**/*.pub
 .env
-.envrc
+# .env holds secrets and is ignored; .envrc holds only non-sensitive
+# path config (ANSIBLE_COLLECTIONS_PATH) and is intentionally committed.
 
 # Build / generated
 dist/
