@@ -62,3 +62,34 @@ os_prep_sysctl_settings:
 # Single sysctl drop-in, managed by ansible.posix.sysctl (ADR-0004 mandates the
 # module over a hand-rolled file + `sysctl -p`). 99- prefix: see note above.
 os_prep_sysctl_file: /etc/sysctl.d/99-k8s.conf
+
+# --- chrony (L1.1.4) --------------------------------------------------------
+# Time synchronization for the node, provided by chrony. Disciplined, agreed
+# time is a Kubernetes correctness prerequisite, not a nicety: TLS certificate
+# validity windows, etcd lease/Raft timing, and kubelet<->apiserver token auth
+# all assume node clocks agree. chrony is chosen over the noble default
+# (systemd-timesyncd) for drift-file discipline across upstream outages (an
+# edge-site reality, where an SNTP client just stops correcting) and the
+# ability to serve peers in an isolated site. See docs/adr/0010 for the
+# chrony-vs-timesyncd rationale and the conflict-handling decision
+# (systemd-timesyncd is stopped, disabled, and masked so the two never race).
+#
+# os_prep_chrony_servers is this slice's source of truth: the upstream NTP
+# sources, each rendered as one "<type> <address> iburst" line in the
+# chrony.conf template. The public NTP Pool default exists only so a fresh
+# node syncs at all; it is NOT a production value. Override it from group_vars/
+# host_vars with your site or internal NTP servers (type: server) for
+# production, edge, and air-gapped deployments, where reaching the public pool
+# is undesirable or impossible.
+#
+#   type     "pool" (one name resolving to many servers, for public pools) or
+#            "server" (a single host, typical for internal/site NTP).
+#   address  hostname or IP of the source.
+os_prep_chrony_servers:
+  - type: pool
+    address: pool.ntp.org
+
+# Path to the chrony config file. Fixed by Ubuntu/Debian packaging (RHEL uses
+# /etc/chrony.conf); single-sourced here so the template and the Molecule
+# assertions reference one value, mirroring os_prep_sysctl_file.
+os_prep_chrony_conf_file: /etc/chrony/chrony.conf
