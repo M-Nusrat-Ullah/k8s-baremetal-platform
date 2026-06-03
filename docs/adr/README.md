@@ -59,3 +59,4 @@ ADR-0005 amending ADR-0004 is the worked example.
 | 0007 | Kernel module strategy for `os_prep`                    | L1.1  | Accepted |
 | 0008 | Ansible collections provisioning and resolution         | L1.1  | Accepted |
 | 0009 | sysctl baseline for `os_prep`                           | L1.1  | Accepted |
+| 0010 | chrony for node time synchronization in `os_prep`       | L1.1  | Accepted |
