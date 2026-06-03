@@ -4,5 +4,14 @@
 # Handlers run at end-of-play (or earlier on `meta: flush_handlers`) and
 # only when explicitly notified by a task. Slices that need a service
 # reload or restart append handlers here.
-#
-# No handlers defined yet — populated by subsequent slices.
+
+- name: Restart chrony
+  ansible.builtin.systemd_service:
+    name: chrony.service
+    state: restarted
+  when: os_prep_chrony_apply_live | bool
+  # Notified by the chrony.conf template (tasks/chrony.yml) on a content
+  # change. Guarded with the same fact as the live tasks: under Molecule the
+  # template change notifies this handler, but apply_live is false so it skips
+  # — no restart attempted in a container, and the idempotence converge (no
+  # change → no notify) stays at changed=0.

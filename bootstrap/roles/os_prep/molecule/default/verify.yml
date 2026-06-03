@@ -166,3 +166,121 @@
       loop_control:
         label: "{{ item.item.key }}"
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    # --- chrony (L1.1.4) ----------------------------------------------------
+    - name: Verify | gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify | chrony package is installed
+      ansible.builtin.assert:
+        that:
+          - "'chrony' in ansible_facts.packages"
+        fail_msg: "chrony package is not installed."
+        success_msg: "chrony package is installed."
+
+    - name: Verify | stat the chrony config file
+      ansible.builtin.stat:
+        path: "{{ os_prep_chrony_conf_file }}"
+      register: os_prep_chrony_conf_stat
+
+    # Unlike the sysctl drop-in (ansible.posix.sysctl owns it, no mode option),
+    # we render this file via template and set mode ourselves, so mode IS
+    # asserted here — mirrors the kernel_modules file check.
+    - name: Verify | chrony config exists and is mode 0644
+      ansible.builtin.assert:
+        that:
+          - os_prep_chrony_conf_stat.stat.exists
+          - os_prep_chrony_conf_stat.stat.mode == "0644"
+        fail_msg: "{{ os_prep_chrony_conf_file }} missing or not mode 0644."
+        success_msg: "{{ os_prep_chrony_conf_file }} present, mode 0644."
+
+    - name: Verify | read the chrony config
+      ansible.builtin.slurp:
+        src: "{{ os_prep_chrony_conf_file }}"
+      register: os_prep_chrony_conf
+
+    - name: Verify | every configured time source is present exactly once
+      ansible.builtin.assert:
+        that:
+          # Each os_prep_chrony_servers entry renders as one
+          # "<type> <address> iburst" line. regex_escape on address (dots);
+          # anchored + length == 1 also catches a duplicated source.
+          - >-
+            (os_prep_chrony_conf.content | b64decode).splitlines()
+            | map('trim')
+            | select('match', '^' ~ (item.type | regex_escape) ~ '\s+' ~ (item.address | regex_escape) ~ '\s+iburst$')
+            | list | length == 1
+        fail_msg: "{{ item.type }} {{ item.address }} iburst not found exactly once in {{ os_prep_chrony_conf_file }}."
+        success_msg: "{{ item.type }} {{ item.address }} iburst present once."
+      loop: "{{ os_prep_chrony_servers }}"
+      loop_control:
+        label: "{{ item.address }}"
+
+    - name: Verify | required baseline directives are present exactly once
+      ansible.builtin.assert:
+        that:
+          # The non-source directives the slice owns. Asserted as literal
+          # anchored lines so a template edit that drops or mangles one (e.g.
+          # removing driftfile, the reason chrony is used here) fails the build.
+          # regex_escape handles the dots/slashes in the values.
+          - >-
+            (os_prep_chrony_conf.content | b64decode).splitlines()
+            | map('trim')
+            | select('match', '^' ~ (item | regex_escape) ~ '$')
+            | list | length == 1
+        fail_msg: "Expected chrony directive '{{ item }}' not found exactly once."
+        success_msg: "chrony directive '{{ item }}' present once."
+      loop:
+        - driftfile /var/lib/chrony/chrony.drift
+        - makestep 1.0 3
+        - rtcsync
+
+    - name: Verify | no include directive reintroduces external sources
+      ansible.builtin.assert:
+        that:
+          # ADR-0010: the file owns its sources. An uncommented confdir/
+          # sourcedir/include would pull the distro's sources.d/conf.d back in,
+          # silently un-inerting ubuntu-ntp-pools.sources. Guard the decision.
+          - >-
+            (os_prep_chrony_conf.content | b64decode).splitlines()
+            | map('trim')
+            | reject('match', '^#')
+            | select('match', '^(confdir|sourcedir|include|includedir)\s')
+            | list | length == 0
+        fail_msg: "An include directive is present; chrony.conf no longer owns its sources (ADR-0010)."
+        success_msg: "No include directives; os_prep_chrony_servers is authoritative."
+
+    # Real-service checks: unit state and the timesyncd mask are live systemd
+    # actions, guarded out of containers (the mask/enable/start tasks skip under
+    # Molecule). These skip here and run during real site.yml execution and the
+    # deferred L1.1.7 smoke test. Actual sync (chronyc tracking) is network- and
+    # time-dependent, so it is left to the L1.1.7 smoke test, not asserted here.
+    - name: Verify | gather service facts
+      ansible.builtin.service_facts:
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | chrony is running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['chrony.service'].state == 'running'
+          - ansible_facts.services['chrony.service'].status == 'enabled'
+        fail_msg: "chrony.service is not running and enabled."
+        success_msg: "chrony.service is running and enabled."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | stat the systemd-timesyncd mask symlink
+      ansible.builtin.stat:
+        path: /etc/systemd/system/systemd-timesyncd.service
+      register: os_prep_timesyncd_mask
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | systemd-timesyncd is masked (symlink to /dev/null)
+      ansible.builtin.assert:
+        that:
+          - os_prep_timesyncd_mask.stat.exists
+          - os_prep_timesyncd_mask.stat.islnk
+          - os_prep_timesyncd_mask.stat.lnk_target == '/dev/null'
+        fail_msg: "systemd-timesyncd is not masked; it could race chrony for the clock."
+        success_msg: "systemd-timesyncd is masked (symlink to /dev/null)."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

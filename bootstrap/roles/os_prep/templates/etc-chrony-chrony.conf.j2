@@ -1,0 +1,47 @@
+# {{ ansible_managed }}
+# chrony configuration for the Kubernetes node time baseline. Managed by the
+# os_prep role (tasks/chrony.yml). Do not edit by hand -- changes will be
+# overwritten on the next Ansible run.
+#
+# os_prep owns this file in full: the distribution's `confdir`/`sourcedir`
+# include lines are deliberately omitted, so the shipped
+# /etc/chrony/sources.d/ubuntu-ntp-pools.sources is left inert and the active
+# time sources are exactly os_prep_chrony_servers below. See docs/adr/0010.
+
+# Upstream time sources (os_prep_chrony_servers). `iburst` sends a short burst
+# of requests at startup so the node reaches first sync in seconds, not
+# minutes. The default public pool is a bootstrap value only -- override it
+# with site or internal NTP servers in group_vars/host_vars for production,
+# edge, and air-gapped nodes.
+{% for source in os_prep_chrony_servers %}
+{{ source.type }} {{ source.address }} iburst
+{% endfor %}
+
+# Drift file: records the system clock's gain/loss rate, which is what lets
+# chrony keep correcting the clock through an upstream outage. This is the
+# concrete reason chrony is preferred over systemd-timesyncd here (ADR-0010).
+driftfile /var/lib/chrony/chrony.drift
+
+# Step the clock (rather than slew) if the offset is over 1 second, but only
+# for the first 3 updates -- i.e. correct a large boot-time offset as one jump
+# so TLS validity windows, etcd, and kubelet auth see correct time immediately,
+# while steady-state corrections are slewed so time never jumps backwards under
+# running workloads.
+makestep 1.0 3
+
+# Sync the hardware (RTC) clock from system time via the kernel, so a reboot
+# starts near-correct before NTP is reachable.
+rtcsync
+
+# Leap seconds are handled via the upstream NTP server's leap-indicator, the
+# standard mechanism. `leapsectz right/UTC` is deliberately omitted: on noble
+# the right/ zoneinfo lives in tzdata-legacy (not installed by default, and not
+# pulled in by Ubuntu's chrony package), so the directive would point at a
+# missing file and log a recurring error for no functional gain. A site that
+# wants local leap tables installs tzdata-legacy and adds leapsectz via
+# host_vars. See docs/adr/0010.
+
+# Client-only posture: no `allow` directive, so this node does not serve time
+# to others, and chrony's command socket stays bound to localhost by default.
+# A node that must serve peers in an isolated site adds `allow`/`local` via
+# host_vars -- not the baseline (ADR-0010).

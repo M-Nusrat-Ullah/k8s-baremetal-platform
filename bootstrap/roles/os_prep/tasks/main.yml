@@ -31,3 +31,12 @@
   ansible.builtin.import_tasks: sysctl.yml
   tags:
     - sysctl
+
+# chrony has no ordering relationship to the slices above: time sync neither
+# depends on the kernel modules / sysctls nor is depended on by them. Ordered
+# last by slice number (L1.1.4), not by any constraint -- safe to run alone:
+#   ansible-playbook site.yml --tags chrony
+- name: Configure time synchronization (chrony)
+  ansible.builtin.import_tasks: chrony.yml
+  tags:
+    - chrony

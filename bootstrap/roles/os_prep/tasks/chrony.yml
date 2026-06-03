@@ -1,0 +1,84 @@
+---
+# tasks/chrony.yml
+#
+# Install chrony and make it the node's sole time source. Structured like
+# tasks/sysctl.yml: a guard fact splits the work into a persist half that runs
+# everywhere (asserted by Molecule) and a live half that needs a real systemd
+# manager (guarded out of containers, exercised on real hosts and at L1.1.7).
+#
+#   * Persist (everywhere) -> install the chrony package and render
+#     os_prep_chrony_conf_file from a template. Pure package + file management,
+#     so it runs in the Molecule container and is asserted in verify.yml
+#     (package present, config content, mode 0644).
+#   * Live (guarded)       -> stop+disable+mask systemd-timesyncd so it can
+#     never race chrony for the clock, then enable+start chrony. Unit state
+#     needs a real manager, so it is guarded out of containers exactly like the
+#     live sysctl set and modprobe in the prior slices. Restart-on-config-change
+#     is a handler (handlers/main.yml), also guarded.
+#
+# chrony over the noble default (systemd-timesyncd), the masking decision, and
+# why the package is `state: present` (no exact-version pin, no apt-mark hold,
+# unlike the kubeadm/containerd stack) are recorded in docs/adr/0010. ADR-0004
+# mandates modules over command/shell, satisfied here by ansible.builtin.apt /
+# template / systemd_service — no command tasks, so no changed_when needed.
+
+- name: Determine whether chrony service state can be managed on this host
+  ansible.builtin.set_fact:
+    os_prep_chrony_apply_live: "{{ ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd'] }}"
+  # 'docker' under Molecule (geerlingguy image): install the package and render
+  # the config there so both are asserted, but skip every systemd unit change
+  # (timesyncd mask, chrony enable/start, restart handler). Real hosts get both
+  # halves. Mirrors os_prep_sysctl_apply_live in tasks/sysctl.yml.
+
+- name: Install chrony
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  # state: present, not latest: install if absent, never force an upgrade every
+  # run (latest churns the apt DB and re-pulls on the HDD). No apt-mark hold,
+  # unlike the Kubernetes stack: chrony is a security-relevant OS daemon whose
+  # reproducibility boundary is the pinned distro release (noble), not an exact
+  # package version that ages out of the archive. See docs/adr/0010.
+  # cache_valid_time keeps this idempotent: the cache refresh is skipped while
+  # under an hour old, so the idempotence converge reports changed=0.
+
+- name: Deploy chrony configuration
+  ansible.builtin.template:
+    src: etc-chrony-chrony.conf.j2
+    dest: "{{ os_prep_chrony_conf_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart chrony
+  # We own the whole file (the template omits the distro sourcedir/confdir
+  # includes), so the shipped ubuntu-ntp-pools.sources is inert and the active
+  # config is exactly os_prep_chrony_servers plus the template constants.
+  # Because the template sets mode itself (unlike ansible.posix.sysctl in
+  # L1.1.3), mode 0644 is asserted in verify.yml, mirroring kernel_modules.
+  # notify fires only on a content change; the handler is guarded, so under
+  # Molecule it is notified on first converge and skips (apply_live false).
+
+# --- Live half: guarded out of containers (real hosts + L1.1.7) -------------
+# timesyncd is handled BEFORE chrony starts so the two never run at once (the
+# documented Ubuntu/Proxmox order). Mask is the strong, reversible form (symlink
+# to /dev/null): it cannot be pulled back in as a dependency and is undone with
+# `systemctl unmask`, unlike removing the package.
+- name: Stop, disable, and mask systemd-timesyncd (chrony is the time source)
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd.service
+    state: stopped
+    enabled: false
+    masked: true
+  when: os_prep_chrony_apply_live | bool
+
+- name: Enable and start chrony
+  ansible.builtin.systemd_service:
+    name: chrony.service
+    state: started
+    enabled: true
+  when: os_prep_chrony_apply_live | bool
+  # state: started (not restarted): ensure running + enabled at boot. Restarts
+  # on config change are the handler's job, so an unchanged re-run is a no-op
+  # and idempotence holds on real hosts too.
