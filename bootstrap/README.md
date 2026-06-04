@@ -12,64 +12,86 @@ the [repo-root README](../README.md). For design decisions, see
 
 ## Current state
 
-Layer 1.0 — Ansible tooling scaffold — is in progress. No roles or
-provisioning logic exist yet; that work begins in L1.1+.
+Layer 1.0 (Ansible tooling scaffold) is complete; Layer 1.1 is in progress.
+The `os_prep` role is under active, slice-by-slice development
+(`roles/os_prep/`): swap, kernel modules, sysctls, chrony, AppArmor, and the
+CIS filesystem-module blacklist have landed, with a real-host smoke-test slice
+next; the container-runtime role follows. See
+[`roles/os_prep/README.md`](roles/os_prep/README.md) for per-slice detail and
+[`docs/adr/`](../docs/adr/) for the decision behind each.
 
 What lives here today:
 
 - Hardened `ansible.cfg` with pipelining, persistent SSH ControlMaster,
   YAML-formatted task output, and in-memory fact caching.
+- A repo-root `.envrc` (direnv) that activates the layer virtualenv and
+  exports the pinned `ANSIBLE_COLLECTIONS_PATH` on entry — see Quick start.
 - Pinned Python tooling (`requirements.txt`) and Galaxy collections
   (`requirements.yml`).
-- Component version registry at `group_vars/all/versions.yml` — values
-  are `null` placeholders pending dedicated pin commits.
+- The `os_prep` role with its own Molecule scenario (per-role, not global —
+  see Conventions).
+- Component version registry at `group_vars/all/versions.yml` — values are
+  `null` placeholders pending dedicated pin commits.
 - Per-shape inventory skeletons under `inventory/<shape>/`.
-- Trust-establishment stub playbook (`site.yml`) that pins SSH host keys
-  on first contact (`StrictHostKeyChecking=accept-new`) and verifies
-  reachability via the `ping` module.
-- Lint configs (`.yamllint`, `.ansible-lint` with `profile: production`)
-  and pre-commit hooks — these live at the repo root and apply
-  repo-wide.
+- Trust-establishment stub playbook (`site.yml`) that pins SSH host keys on
+  first contact (`StrictHostKeyChecking=accept-new`) and verifies reachability
+  via the `ping` module.
+- Lint configs (`.yamllint`, `.ansible-lint` with `profile: production`) and
+  pre-commit hooks — these live at the repo root and apply repo-wide.
 
 What is not here yet:
 
-- No roles. The first roles (OS prep, container runtime, kubeadm)
-  land in L1.1+.
-- No Molecule scenarios. A reusable template directory ships at the
-  end of L1.0.
-- No populated inventory. Each shape's `hosts.yml` declares the
-  group structure with empty `hosts: {}` until a real target exists.
+- The container-runtime and kubeadm roles (L1.1+/L1.2).
+- Populated inventory. Each shape's `hosts.yml` declares the group structure
+  with empty `hosts: {}` until a real target exists.
 
 ## Quick start
 
 Python 3.12+ is required (ansible-core 2.20's floor). Ubuntu 24.04 LTS
-ships 3.12.3 and is the validated host.
+ships 3.12.3 and is the validated host. The repo uses
+[direnv](https://direnv.net) to load `.envrc` on `cd` into the directory:
+it puts `bootstrap/.venv/bin` on `PATH` and exports
+`ANSIBLE_COLLECTIONS_PATH`, so no manual `source` is ever needed — and a
+hand-run `source` is discouraged because it races direnv. Install direnv
+and hook it into your shell once before the steps below.
 
 ```bash
 # CWD: repo root
 git clone https://github.com/M-Nusrat-Ullah/k8s-baremetal-platform
 cd k8s-baremetal-platform
 
-# 1. Create and activate the per-layer virtualenv
+# 1. Create the per-layer virtualenv (system python3 builds it)
 python3 -m venv bootstrap/.venv
-source bootstrap/.venv/bin/activate
 
-# 2. Install Python tooling
+# 2. Trust .envrc — activates the venv and exports ANSIBLE_COLLECTIONS_PATH.
+#    Re-run after any edit to .envrc.
+direnv allow
+
+# 3. Install Python tooling (pip resolves from the venv now, no source)
 pip install --upgrade pip
 pip install -r bootstrap/requirements.txt
 
-# 3. Install Galaxy collections into the layer-local path
-(cd bootstrap && ansible-galaxy collection install -r requirements.yml -p ./collections)
+# 4. Install Galaxy collections into the layer-local path
+ansible-galaxy collection install -r bootstrap/requirements.yml -p bootstrap/collections
 
-# 4. Wire up the pre-commit git hook (one-time per clone)
+# 5. Wire up the pre-commit git hook (one-time per clone)
 pre-commit install
 
-# 5. Smoke test — should print "skipping: no hosts matched" with no errors
+# 6. Verify the environment resolves from the venv, not the system
+which molecule ansible-lint python   # all under bootstrap/.venv/bin
+echo "$ANSIBLE_COLLECTIONS_PATH"      # …/bootstrap/collections
+
+# 7. Smoke test — should print "skipping: no hosts matched" with no errors
 (cd bootstrap && ansible-playbook -i inventory/lab-single-node/ site.yml --check)
 ```
 
-If step 5 prints `PLAY RECAP ***` with no host lines and exits cleanly,
-the layer is correctly set up.
+If step 6 shows the venv paths and step 7 prints `PLAY RECAP ***` with no
+host lines and exits cleanly, the layer is correctly set up.
+
+> **Not using direnv?** After step 1, `source bootstrap/.venv/bin/activate`
+> and `export ANSIBLE_COLLECTIONS_PATH="$PWD/bootstrap/collections"` by
+> hand — ansible-lint honors only that variable, not `ansible.cfg`'s
+> `collections_path`. Never combine a manual `source` with direnv active.
 
 ## Layout
 
@@ -85,13 +107,15 @@ bootstrap/
 │ └── lab-single-node/hosts.yml # deploy shape: single-node lab
 ├── requirements.txt # Python control-plane tooling
 ├── requirements.yml # Galaxy collections
+├── roles/
+│ └── os_prep/ # OS-prep role (slice-by-slice; see its README)
 ├── site.yml # top-level orchestration playbook
 └── README.md # this file
 ```
 
-`.venv/` and `collections/` are local-only and excluded from version
-control. The `roles/` and `molecule/` directories will appear as L1.0
-completes and L1.1 begins.
+`.venv/` and `collections/` are local-only and excluded from version control.
+Molecule scenarios live inside each role (`roles/<role>/molecule/`), not at
+this level — see Conventions.
 
 ## Deploy shapes
 
@@ -149,8 +173,8 @@ is auto-discovered. Lint and hook commands run from repo root.
 
 | Phase | Scope                                           |
 | ----- | ----------------------------------------------- |
-| L1.0  | Ansible tooling scaffold (in progress)          |
-| L1.1  | OS prep + container runtime roles               |
+| L1.0  | Ansible tooling scaffold (complete)             |
+| L1.1  | OS prep + container runtime roles (in progress) |
 | L1.2  | kubeadm + kubelet + kubectl roles               |
 | L2.x  | CNI (Cilium, kube-proxy replacement) and Multus |
 | L3    | Policy (Kyverno) and admission baseline         |
