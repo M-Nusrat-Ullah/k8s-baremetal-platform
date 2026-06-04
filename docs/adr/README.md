@@ -61,3 +61,4 @@ ADR-0005 amending ADR-0004 is the worked example.
 | 0009 | sysctl baseline for `os_prep`                           | L1.1  | Accepted |
 | 0010 | chrony for node time synchronization in `os_prep`       | L1.1  | Accepted |
 | 0011 | AppArmor baseline for `os_prep`                         | L1.1  | Accepted |
+| 0012 | CIS filesystem module blacklist                         | L1.1.6| Accepted |
