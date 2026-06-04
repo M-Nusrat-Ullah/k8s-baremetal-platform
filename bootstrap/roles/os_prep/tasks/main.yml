@@ -40,3 +40,12 @@
   ansible.builtin.import_tasks: chrony.yml
   tags:
     - chrony
+
+# apparmor is independent of every slice above: it neither depends on the
+# kernel modules / sysctls / chrony nor is depended on by them. Ordered last by
+# slice number (L1.1.5), not by any constraint -- safe to run alone:
+#   ansible-playbook site.yml --tags apparmor
+- name: Ensure AppArmor baseline (Kubernetes node prerequisite)
+  ansible.builtin.import_tasks: apparmor.yml
+  tags:
+    - apparmor

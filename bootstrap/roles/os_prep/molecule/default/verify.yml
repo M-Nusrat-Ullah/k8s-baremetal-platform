@@ -284,3 +284,32 @@
         fail_msg: "systemd-timesyncd is not masked; it could race chrony for the clock."
         success_msg: "systemd-timesyncd is masked (symlink to /dev/null)."
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    # --- AppArmor (L1.1.5) --------------------------------------------------
+    # Reuses ansible_facts.packages from the chrony package_facts gather above.
+    - name: Verify | every required AppArmor package is installed
+      ansible.builtin.assert:
+        that:
+          - item in ansible_facts.packages
+        fail_msg: "{{ item }} is not installed."
+        success_msg: "{{ item }} is installed."
+      loop: "{{ os_prep_apparmor_packages }}"
+
+    # Real-kernel check: /sys/module/apparmor/parameters/enabled reflects the
+    # host kernel, so under Molecule it would assert the Docker host, not the
+    # role. Guarded out here (the tasks/apparmor.yml preflight is likewise
+    # guarded) and exercised during real site.yml execution and the L1.1.7
+    # smoke test. Independent re-assertion, mirroring the /proc/modules check.
+    - name: Verify | read the AppArmor LSM enabled flag from the running kernel
+      ansible.builtin.slurp:
+        src: /sys/module/apparmor/parameters/enabled
+      register: os_prep_apparmor_enabled_check
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | AppArmor LSM is enabled in the running kernel
+      ansible.builtin.assert:
+        that:
+          - (os_prep_apparmor_enabled_check.content | b64decode | trim) == "Y"
+        fail_msg: "AppArmor LSM is not enabled (/sys/module/apparmor/parameters/enabled != 'Y')."
+        success_msg: "AppArmor LSM is enabled in the running kernel."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

@@ -93,3 +93,29 @@ os_prep_chrony_servers:
 # /etc/chrony.conf); single-sourced here so the template and the Molecule
 # assertions reference one value, mirroring os_prep_sysctl_file.
 os_prep_chrony_conf_file: /etc/chrony/chrony.conf
+
+# --- AppArmor (L1.1.5) ------------------------------------------------------
+# AppArmor packages ensured present on the node. AppArmor is Ubuntu's default
+# LSM and a Kubernetes node prerequisite: the kubelet refuses to admit a Pod
+# that requests an AppArmor profile unless the AppArmor kernel module is
+# enabled (k8s AppArmor support is stable as of 1.31). On noble AppArmor is
+# installed and baked into the kernel by default, so this list mainly
+# guarantees the baseline on a minimized image where the packages could be
+# absent; on a stock node the install is a no-op.
+#
+#   apparmor        Core: the LSM userspace, apparmor_parser, the profile-load
+#                   service, and the default profiles that ship with it.
+#   apparmor-utils  Operator/management tooling (aa-enforce, aa-complain,
+#                   aa-genprof, aa-logprof, ...). Not strictly required for the
+#                   kernel-module prerequisite, but kept so the node carries the
+#                   AppArmor tooling for incident response without needing apt
+#                   on a possibly air-gapped host.
+#
+# This slice deliberately does NOT manage the apparmor.service unit (a oneshot
+# profile loader that is inactive by design once it has run), modify the kernel
+# command line, or author/flip AppArmor profiles. It ensures these packages
+# and, on real hosts only, preflight-asserts the LSM is enabled. The authoritative
+# check is /sys/module/apparmor/parameters/enabled == Y. See docs/adr/0011.
+os_prep_apparmor_packages:
+  - apparmor
+  - apparmor-utils
