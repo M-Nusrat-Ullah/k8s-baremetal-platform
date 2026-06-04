@@ -1,0 +1,65 @@
+---
+# tasks/apparmor.yml
+#
+# Ensure the AppArmor baseline for a Kubernetes node. AppArmor is Ubuntu's
+# default LSM and a kubelet pod-admission prerequisite: the kubelet rejects a
+# Pod that requests an AppArmor profile unless the AppArmor kernel module is
+# enabled. On noble AppArmor is installed and kernel-baked by default, so this
+# slice is verify-centric rather than configure-centric:
+#
+#   * Persist (everywhere) -> ensure os_prep_apparmor_packages are installed.
+#     Pure package management, so it runs in the Molecule container and the
+#     package presence is asserted in verify.yml.
+#   * Preflight (guarded)  -> on real hosts only, assert the LSM is enabled
+#     (/sys/module/apparmor/parameters/enabled == Y). This reads host-kernel
+#     state, which in a container reflects the Docker host rather than anything
+#     the role did, so it is guarded out exactly like the live checks in the
+#     prior slices and exercised at L1.1.7.
+#
+# Unlike the asserts in verify.yml (which check what the role produced), this
+# assert is a *preflight gate*: AppArmor-enabled is an unfixable precondition
+# that kubeadm does NOT preflight, so a node booted with AppArmor disabled would
+# otherwise provision and join cleanly and only fail later, silently, when an
+# AppArmor-profiled Pod is scheduled. Failing here surfaces it at os_prep time.
+# See docs/adr/0011 for that decision and for what this slice deliberately does
+# not do (manage the oneshot apparmor.service, touch the kernel cmdline, or
+# author/flip profiles).
+
+- name: Determine whether host-kernel AppArmor state can be asserted on this host
+  ansible.builtin.set_fact:
+    os_prep_apparmor_apply_live: "{{ ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd'] }}"
+  # 'docker' under Molecule (geerlingguy image): install the packages there so
+  # presence is asserted, but skip the kernel-state preflight (the sysfs value
+  # reflects the Docker host, not the role). Real hosts get both. Mirrors
+  # os_prep_chrony_apply_live in tasks/chrony.yml.
+
+- name: Ensure AppArmor packages are installed
+  ansible.builtin.apt:
+    name: "{{ os_prep_apparmor_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  # state: present (install if absent, never force-upgrade) — same posture as
+  # the chrony install (ADR-0010), for the same reasons: AppArmor is a base OS
+  # security component whose reproducibility boundary is the pinned distro
+  # release, not an exact package version, and it must stay patchable.
+  # cache_valid_time keeps this idempotent (cache refresh skipped under an hour).
+
+- name: Assert the AppArmor LSM is enabled in the running kernel
+  ansible.builtin.slurp:
+    src: /sys/module/apparmor/parameters/enabled
+  register: os_prep_apparmor_enabled
+  when: os_prep_apparmor_apply_live | bool
+
+- name: Fail if AppArmor is not enabled (kubelet AppArmor prerequisite)
+  ansible.builtin.assert:
+    that:
+      - (os_prep_apparmor_enabled.content | b64decode | trim) == "Y"
+    fail_msg: >-
+      AppArmor LSM is not enabled in the kernel
+      (/sys/module/apparmor/parameters/enabled is not 'Y'); the kubelet will
+      reject Pods that request an AppArmor profile. This usually means the
+      kernel booted with apparmor=0 (or security= set to another LSM): remove
+      it from GRUB_CMDLINE_LINUX in /etc/default/grub, run update-grub, reboot.
+    success_msg: "AppArmor LSM is enabled in the running kernel."
+  when: os_prep_apparmor_apply_live | bool
