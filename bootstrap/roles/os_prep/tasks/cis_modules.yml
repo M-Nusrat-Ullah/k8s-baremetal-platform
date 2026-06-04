@@ -1,0 +1,46 @@
+---
+# tasks/cis_modules.yml
+#
+# CIS Ubuntu 24.04 Benchmark v1.0.0 section 1.1.1: neutralize unused filesystem
+# kernel modules to reduce the kernel attack surface. Like tasks/kernel_modules.yml
+# this is artifact-centric -- it renders a modprobe.d drop-in (pure file content,
+# kernel-independent), so it runs everywhere including the Molecule container and
+# is asserted in verify.yml. The runtime proof that a module cannot load (modprobe
+# --dry-run resolving to /bin/false) needs a real kernel; it is guarded out of
+# containers in verify.yml and exercised at L1.1.7.
+#
+# The blacklist set lives in defaults/main.yml (os_prep_module_blacklist) with the
+# scope and exclusion (overlay, vfat) rationale. It MUST stay disjoint from
+# os_prep_kernel_modules -- enforced by the disjoint-set assertion in verify.yml
+# (docs/adr/0007).
+#
+# snapd is removed here: it mounts snaps as squashfs, which this slice blacklists.
+# A Kubernetes node runs no snaps. apt removal works in the Molecule container
+# (mirrors the chrony/apparmor installs) and is asserted via package_facts, so no
+# container guard is needed. See docs/adr/0012.
+
+- name: Remove snapd (squashfs blacklist coupling; node runs no snaps)
+  ansible.builtin.apt:
+    name: snapd
+    state: absent
+    purge: true
+
+- name: Ensure the modprobe.d directory exists
+  ansible.builtin.file:
+    path: "{{ os_prep_module_blacklist_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  # template/ does not create parent dirs. /etc/modprobe.d always exists on a real
+  # Ubuntu host but is absent from the minimal Molecule image, so ensure it here --
+  # makes the role self-sufficient on any target instead of assuming the base image
+  # ships it.
+
+- name: Persist the CIS filesystem-module blacklist
+  ansible.builtin.template:
+    src: etc-modprobe.d-cis-blacklist.conf.j2
+    dest: "{{ os_prep_module_blacklist_file }}"
+    owner: root
+    group: root
+    mode: "0644"

@@ -49,3 +49,13 @@
   ansible.builtin.import_tasks: apparmor.yml
   tags:
     - apparmor
+
+# cis_modules is independent of every slice above (it neither depends on nor is
+# depended on by swap/kernel/sysctl/chrony/apparmor) -- safe to run alone:
+#   ansible-playbook site.yml --tags cis
+# Its blacklist set MUST stay disjoint from the kernel_modules load set above; the
+# verify.yml disjoint-set assertion enforces this (docs/adr/0007).
+- name: Blacklist unused filesystem kernel modules (CIS 1.1.1)
+  ansible.builtin.import_tasks: cis_modules.yml
+  tags:
+    - cis

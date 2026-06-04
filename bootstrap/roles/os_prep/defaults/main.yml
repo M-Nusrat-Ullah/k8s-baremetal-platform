@@ -119,3 +119,61 @@ os_prep_chrony_conf_file: /etc/chrony/chrony.conf
 os_prep_apparmor_packages:
   - apparmor
   - apparmor-utils
+
+# --- CIS filesystem module blacklist (L1.1.6) -------------------------------
+# Unused filesystem kernel modules neutralized to shrink the kernel attack
+# surface, per the CIS Ubuntu 24.04 Benchmark v1.0.0 section 1.1.1. Rendered to a
+# single drop-in (os_prep_module_blacklist_file). Each module gets BOTH an
+# `install <mod> /bin/false` line (neutralizes explicit modprobe and dependency
+# loads) AND a `blacklist <mod>` line (suppresses udev autoload); blacklist alone
+# is insufficient because a module can still be loaded explicitly, which is why
+# CIS pairs them. The 24.04 benchmark uses /bin/false (not the older /bin/true)
+# for its non-zero return.
+#
+# Scope: the CIS *filesystem-module* set ONLY, curated for a Kubernetes node. Do
+# NOT add other CIS sections here (dccp/sctp/rds/tipc, bluetooth, firewire) --
+# those are separate decisions. Workload-specific module needs (e.g. a SecGW's
+# xfrm) belong to that workload's PRIVILEGED_EXCEPTIONS entry, not the host
+# baseline.
+#
+# The install+blacklist mechanism is identical across Ubuntu releases, so adding
+# 20.04/22.04 support later means overriding THIS LIST in group_vars per OS --
+# not changing tasks/cis_modules.yml or the template.
+#
+# Two CIS 1.1.1 entries are deliberately EXCLUDED:
+#   overlay  (CIS 1.1.1.6 "overlayfs") -- the containerd overlayfs snapshotter
+#            loads it; blacklisting it breaks the container runtime. It is in
+#            os_prep_kernel_modules (L1.1.2); the verify.yml disjoint-set
+#            assertion enforces that the two sets never overlap. See docs/adr/0007.
+#   vfat     -- not in the CIS 24.04 list (dropped upstream: vfat backs the EFI
+#            System Partition, and blacklisting it can make a UEFI node
+#            unbootable). Recorded here so the exclusion is known, not an
+#            accidental omission.
+#
+# squashfs is blacklisted AND snapd is removed (tasks/cis_modules.yml): snapd
+# mounts snaps as squashfs, so the two are coupled. A Kubernetes node is a
+# single-purpose appliance that runs no snaps. See docs/adr/0012.
+#
+#   cramfs       legacy compressed FS (embedded era)
+#   freevxfs     Veritas/HP-UX FS
+#   hfs          classic Mac OS FS
+#   hfsplus      Mac OS HFS+ FS
+#   jffs2        flash FS for embedded devices
+#   squashfs     read-only compressed FS (snapd's snap format; see note above)
+#   udf          optical-disc (DVD/ECMA-167) FS
+#   usb-storage  USB mass-storage; a control-plane/server node should not mount
+#                removable media. Edge nodes needing USB recovery override this
+#                list in group_vars to drop the entry.
+os_prep_module_blacklist:
+  - cramfs
+  - freevxfs
+  - hfs
+  - hfsplus
+  - jffs2
+  - squashfs
+  - udf
+  - usb-storage
+
+# Single consolidated drop-in, mirroring os_prep_sysctl_file. CIS requires the
+# directives to exist in a file under /etc/modprobe.d/, not one file per module.
+os_prep_module_blacklist_file: /etc/modprobe.d/cis-blacklist.conf

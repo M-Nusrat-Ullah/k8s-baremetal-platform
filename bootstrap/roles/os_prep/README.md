@@ -36,6 +36,8 @@ Variables are populated as each `L1.1.x` slice lands.
 | `os_prep_sysctl_settings` | `{net.ipv4.ip_forward: "1", net.bridge.bridge-nf-call-iptables: "1", net.bridge.bridge-nf-call-ip6tables: "1"}` | `os_prep` | Kernel sysctls written to `os_prep_sysctl_file` and applied to the running kernel on real hosts. The Kubernetes node-prerequisite set only; `rp_filter`, IPv6 forwarding, and node-tuning sysctls are deliberately excluded. See `docs/adr/0009`. |
 | `os_prep_sysctl_file` | `/etc/sysctl.d/99-k8s.conf` | `os_prep` | Drop-in path for the sysctl set. The `99-` prefix applies it after the distribution defaults in `/usr/lib/sysctl.d/`. |
 | `os_prep_apparmor_packages` | `[apparmor, apparmor-utils]` | `os_prep` | AppArmor packages ensured present. AppArmor is Ubuntu's default LSM and a kubelet prerequisite: a Pod requesting an AppArmor profile is rejected unless the AppArmor kernel module is enabled. Default-present and kernel-baked on noble, so this mainly guarantees the baseline on minimized images. The slice does not manage the (oneshot) `apparmor.service`, touch the kernel cmdline, or author profiles; on real hosts it preflight-asserts the module is enabled. See `docs/adr/0011`. |
+| `os_prep_module_blacklist` | `[cramfs, freevxfs, hfs, hfsplus, jffs2, squashfs, udf, usb-storage]` | `os_prep` | CIS §1.1.1 filesystem modules to blacklist (overlay and vfat are excluded; see defaults comment). |
+| `os_prep_module_blacklist_file` | `/etc/modprobe.d/cis-blacklist.conf` | `os_prep` | Single drop-in for the install/blacklist directives; mirrors `os_prep_sysctl_file`. |
 | `os_prep_chrony_servers` | `[{type: pool, address: pool.ntp.org}]` | `os_prep` | Upstream NTP time sources, each rendered into `os_prep_chrony_conf_file` as a `<type> <address> iburst` line (`type` is `pool` or `server`). The public-pool default is a bootstrap value only — override with site or internal NTP servers in `group_vars`/`host_vars` for production, edge, and air-gapped nodes. chrony is used over the noble default `systemd-timesyncd`; see `docs/adr/0010`. |
 | `os_prep_chrony_conf_file` | `/etc/chrony/chrony.conf` | `os_prep` | Path to the chrony config file, owned in full by the role's template (Ubuntu/Debian layout; RHEL uses `/etc/chrony.conf`). Single-sourced so the template and the molecule assertions reference one value. |
 
@@ -54,7 +56,7 @@ The role exposes per-concern tags so the operator can run a subset:
 | `sysctl`   | Apply Kubernetes-required sysctl values                        | L1.1.3       |
 | `chrony`   | Install and enable chrony for time sync                        | L1.1.4       |
 | `apparmor` | Verify AppArmor is enabled and enforcing                       | L1.1.5       |
-| `cis`      | Blacklist CIS-recommended unused filesystem modules            | L1.1.6       |
+| `cis`      | Blacklist CIS-recommended unused filesystem modules (tasks/cis_modules.yml)            | L1.1.6       |
 
 ## Example playbook
 
@@ -96,11 +98,15 @@ the runtime kernel behaviour those artifacts produce:
   the chrony package is installed and `chrony.conf` has the expected
   content and mode; the AppArmor packages are installed; a second
   converge reports zero changed tasks.
+  - The CIS module blacklist file (`/etc/modprobe.d/cis-blacklist.conf`) exists, mode 0644, and contains exactly one `install … /bin/false` and one `blacklist` line per module.
+  - The blacklist set has no overlap with the kernel module load set (ADR-0007 disjoint invariant).
+  - The `snapd` package is absent (squashfs coupling).
 - **Not verified by molecule:** kernel modules actually loading into the
   host kernel; `swapoff` removing entries from `/proc/swaps`; chrony
   service running/enabled state and the `systemd-timesyncd` mask; the
   AppArmor kernel-module enabled state and profile/enforcement state
   (host-kernel/boot state, deferred to the L1.1.7 smoke test).
+  - The runtime modprobe-resolution proof (`modprobe --dry-run` → `/bin/false`) – guarded out of containers, deferred to the L1.1.7 reboot smoke test.
 
 Assertions that require a real kernel are guarded with
 `when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']`

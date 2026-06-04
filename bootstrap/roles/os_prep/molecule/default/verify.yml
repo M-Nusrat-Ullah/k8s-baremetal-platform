@@ -313,3 +313,86 @@
         fail_msg: "AppArmor LSM is not enabled (/sys/module/apparmor/parameters/enabled != 'Y')."
         success_msg: "AppArmor LSM is enabled in the running kernel."
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    # --- CIS module blacklist (L1.1.6) --------------------------------------
+    - name: Verify | stat the CIS module blacklist drop-in
+      ansible.builtin.stat:
+        path: "{{ os_prep_module_blacklist_file }}"
+      register: os_prep_blacklist_file_stat
+
+    - name: Verify | blacklist drop-in exists and is mode 0644
+      ansible.builtin.assert:
+        that:
+          - os_prep_blacklist_file_stat.stat.exists
+          - os_prep_blacklist_file_stat.stat.mode == "0644"
+        fail_msg: "{{ os_prep_module_blacklist_file }} missing or not mode 0644."
+        success_msg: "{{ os_prep_module_blacklist_file }} present, mode 0644."
+
+    - name: Verify | read the CIS module blacklist drop-in
+      ansible.builtin.slurp:
+        src: "{{ os_prep_module_blacklist_file }}"
+      register: os_prep_blacklist_conf
+
+    - name: Verify | each module is neutralized (install /bin/false + blacklist)
+      ansible.builtin.assert:
+        that:
+          # Column-anchored, length == 1 also catches a duplicated line.
+          # regex_escape on item handles the hyphen in usb-storage.
+          - >-
+            (os_prep_blacklist_conf.content | b64decode).splitlines() | map('trim')
+            | select('match', '^install\s+' ~ (item | regex_escape) ~ '\s+/bin/false$')
+            | list | length == 1
+          - >-
+            (os_prep_blacklist_conf.content | b64decode).splitlines() | map('trim')
+            | select('match', '^blacklist\s+' ~ (item | regex_escape) ~ '$')
+            | list | length == 1
+        fail_msg: "{{ item }} not fully neutralized (need install /bin/false + blacklist, each once)."
+        success_msg: "{{ item }} neutralized: install /bin/false + blacklist present once."
+      loop: "{{ os_prep_module_blacklist }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Verify | blacklist and load sets are disjoint (ADR-0007)
+      ansible.builtin.assert:
+        that:
+          - (os_prep_kernel_modules | intersect(os_prep_module_blacklist) | length) == 0
+        fail_msg: >-
+          os_prep_module_blacklist overlaps os_prep_kernel_modules
+          ({{ os_prep_kernel_modules | intersect(os_prep_module_blacklist) | join(', ') }});
+          a module the platform loads must never be blacklisted (ADR-0007).
+        success_msg: "Module load and blacklist sets are disjoint."
+
+    - name: Verify | snapd is not installed (squashfs coupling, ADR-0012)
+      ansible.builtin.assert:
+        that:
+          - "'snapd' not in ansible_facts.packages"
+        fail_msg: "snapd is still installed; squashfs is blacklisted, so snapd would fail to mount snaps (ADR-0012)."
+        success_msg: "snapd is absent; squashfs blacklist is safe."
+
+    # Real-kernel proof: modprobe resolution reflects the install directive only on
+    # a real, writable kernel. Guarded out of containers; exercised on real hosts
+    # and the deferred L1.1.7 reboot smoke test. Mirrors the /proc/modules check.
+    # NOTE (L1.1.7 refinement): on a kernel where a module is built-in (=y),
+    # modprobe reports it builtin rather than /bin/false; treat that as acceptable
+    # there. This block is validated on real hardware at L1.1.7.
+    - name: Verify | resolve modprobe for each blacklisted module (real kernel)
+      ansible.builtin.command: "modprobe --dry-run --verbose {{ item }}"
+      register: os_prep_blacklist_modprobe
+      changed_when: false
+      failed_when: false
+      loop: "{{ os_prep_module_blacklist }}"
+      loop_control:
+        label: "{{ item }}"
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | each blacklisted module resolves to /bin/false (real kernel)
+      ansible.builtin.assert:
+        that:
+          - "'/bin/false' in item.stdout"
+        fail_msg: >-
+          {{ item.item }} does not resolve to /bin/false (modprobe would still load it).
+        success_msg: "{{ item.item }} resolves to /bin/false (load neutralized)."
+      loop: "{{ os_prep_blacklist_modprobe.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']

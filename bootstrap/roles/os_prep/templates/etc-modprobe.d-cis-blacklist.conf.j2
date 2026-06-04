@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# CIS Ubuntu 24.04 Benchmark v1.0.0 section 1.1.1 -- neutralize unused filesystem
+# kernel modules to reduce the kernel attack surface. Managed by the os_prep role
+# (tasks/cis_modules.yml). Do not edit by hand -- changes are overwritten on the
+# next Ansible run.
+#
+# Each module gets both directives: `install <mod> /bin/false` neutralizes explicit
+# modprobe and dependency loads; `blacklist <mod>` suppresses udev autoload.
+{% for module in os_prep_module_blacklist %}
+install {{ module }} /bin/false
+blacklist {{ module }}
+{% endfor %}
