@@ -55,7 +55,7 @@ The role exposes per-concern tags so the operator can run a subset:
 | `kernel`   | Load and persist required kernel modules                       | L1.1.2       |
 | `sysctl`   | Apply Kubernetes-required sysctl values                        | L1.1.3       |
 | `chrony`   | Install and enable chrony for time sync                        | L1.1.4       |
-| `apparmor` | Verify AppArmor is enabled and enforcing                       | L1.1.5       |
+| `apparmor` | Verify AppArmor is enabled                                     | L1.1.5       |
 | `cis`      | Blacklist CIS-recommended unused filesystem modules (tasks/cis_modules.yml)            | L1.1.6       |
 
 ## Example playbook
@@ -101,16 +101,32 @@ the runtime kernel behaviour those artifacts produce:
   - The CIS module blacklist file (`/etc/modprobe.d/cis-blacklist.conf`) exists, mode 0644, and contains exactly one `install … /bin/false` and one `blacklist` line per module.
   - The blacklist set has no overlap with the kernel module load set (ADR-0007 disjoint invariant).
   - The `snapd` package is absent (squashfs coupling).
-- **Not verified by molecule:** kernel modules actually loading into the
-  host kernel; `swapoff` removing entries from `/proc/swaps`; chrony
-  service running/enabled state and the `systemd-timesyncd` mask; the
-  AppArmor kernel-module enabled state and profile/enforcement state
-  (host-kernel/boot state, deferred to the L1.1.7 smoke test).
-  - The runtime modprobe-resolution proof (`modprobe --dry-run` → `/bin/false`) – guarded out of containers, deferred to the L1.1.7 reboot smoke test.
+- **Not verified by molecule (proven by the L1.1.7 smoke test instead):**
+  kernel modules actually loading into the host kernel; `swapoff` removing
+  entries from `/proc/swaps`;
+  chrony service running/enabled state and the `systemd-timesyncd` mask;
+  the AppArmor kernel-module enabled state and profile/enforcement state
+  (host-kernel/boot state, proven by the L1.1.7 smoke test).
+  - The runtime modprobe-resolution proof (`modprobe --dry-run` → `/bin/false`) – guarded out of containers, proven
+  by the L1.1.7 reboot smoke test.
 
 Assertions that require a real kernel are guarded with
 `when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']`
 so they skip inside molecule and run during real `site.yml` execution.
+
+### Real-host smoke test (L1.1.7)
+
+The runtime behaviour molecule cannot reach — modules loading into the host
+kernel, runtime `swapoff`, live sysctls, chrony service state, the
+`systemd-timesyncd` mask, the AppArmor LSM enabled flag, and the
+modprobe-resolution proof — is validated on a real noble host by the smoke
+harness in [`tests/smoke/`](../../tests/smoke/README.md): apply via `site.yml`,
+`verify.yml`, reboot, `verify.yml` again. The same `verify.yml` runs in both
+contexts; its real-kernel assertions skip in the container and execute on the
+host. The post-reboot pass is what proves the persisted artifacts — not the
+converge-time actions — re-establish the correct state at boot. Verified on
+noble 6.8 (GA) and 6.17 (HWE) kernels. See
+[ADR-0013](../../../docs/adr/0013-real-host-smoke-test-harness.md).
 
 ## License
 
