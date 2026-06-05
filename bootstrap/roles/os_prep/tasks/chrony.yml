@@ -61,16 +61,41 @@
   # Molecule it is notified on first converge and skips (apply_live false).
 
 # --- Live half: guarded out of containers (real hosts + L1.1.7) -------------
-# timesyncd is handled BEFORE chrony starts so the two never run at once (the
-# documented Ubuntu/Proxmox order). Mask is the strong, reversible form (symlink
-# to /dev/null): it cannot be pulled back in as a dependency and is undone with
-# `systemctl unmask`, unlike removing the package.
-- name: Stop, disable, and mask systemd-timesyncd (chrony is the time source)
+# timesyncd is handled BEFORE chrony starts so the two never race for the clock
+# (the documented Ubuntu order). Two facts about noble, verified on hardware at
+# L1.1.7, shape this:
+#   1. The "Install chrony" task above REMOVES the systemd-timesyncd *package*:
+#      both provide the `time-daemon` virtual package and chrony conflicts with
+#      it, so apt drops timesyncd. By the time we reach here the unit is usually
+#      gone, so a single systemd_service call with state: stopped fails with
+#      "Could not find the requested service". stop/disable must be conditional
+#      on the unit actually being present.
+#   2. Masking does NOT require the unit to exist: a /dev/null symlink under
+#      /etc/systemd/system/ masks the unit name regardless, and survives a later
+#      reinstall (the belt-and-suspenders ADR-0010 wants). We write that symlink
+#      with the file module — idempotent, absence-tolerant, and exactly the form
+#      verify.yml asserts (islnk + target /dev/null). No daemon-reload needed:
+#      verify reads the on-disk symlink and the boot path re-reads it; nothing
+#      in this run tries to start the unit.
+- name: Gather service facts (timesyncd is usually removed by the chrony install)
+  ansible.builtin.service_facts:
+  when: os_prep_chrony_apply_live | bool
+
+- name: Stop and disable systemd-timesyncd when it is present
   ansible.builtin.systemd_service:
     name: systemd-timesyncd.service
     state: stopped
     enabled: false
-    masked: true
+  when:
+    - os_prep_chrony_apply_live | bool
+    - "'systemd-timesyncd.service' in ansible_facts.services"
+
+- name: Mask systemd-timesyncd so it can never race chrony for the clock
+  ansible.builtin.file:
+    src: /dev/null
+    dest: /etc/systemd/system/systemd-timesyncd.service
+    state: link
+    force: true
   when: os_prep_chrony_apply_live | bool
 
 - name: Enable and start chrony
