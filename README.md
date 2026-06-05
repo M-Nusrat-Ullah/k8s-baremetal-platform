@@ -6,8 +6,10 @@ Built as a personal portfolio project; intended to host telco-shaped workloads
 
 ## Status
 
-**In development.** Layer 0 (architecture and repo scaffolding) only.
-See [`docs/adr/`](docs/adr/) for the running log of design decisions.
+**In development.** Layer 1.1 (node OS baseline) in progress: the `os_prep`
+Ansible role is built slice-by-slice and validated on real hardware via a
+reboot smoke test (through L1.1.7). Layer 1.0 (Ansible tooling scaffold)
+complete. See [`docs/adr/`](docs/adr/) for the running log of design decisions.
 
 ## Who this is for
 

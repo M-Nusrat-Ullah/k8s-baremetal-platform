@@ -14,10 +14,11 @@ the [repo-root README](../README.md). For design decisions, see
 
 Layer 1.0 (Ansible tooling scaffold) is complete; Layer 1.1 is in progress.
 The `os_prep` role is under active, slice-by-slice development
-(`roles/os_prep/`): swap, kernel modules, sysctls, chrony, AppArmor, and the
-CIS filesystem-module blacklist have landed, with a real-host smoke-test slice
-next; the container-runtime role follows. See
-[`roles/os_prep/README.md`](roles/os_prep/README.md) for per-slice detail and
+(`roles/os_prep/`): swap, kernel modules, sysctls, chrony, AppArmor, the CIS
+filesystem-module blacklist, and the real-host smoke-test harness (L1.1.7) have
+landed; the container-runtime role follows. See
+[`roles/os_prep/README.md`](roles/os_prep/README.md) for per-slice detail,
+[`tests/smoke/README.md`](tests/smoke/README.md) for the smoke-test runbook, and
 [`docs/adr/`](../docs/adr/) for the decision behind each.
 
 What lives here today:
@@ -33,17 +34,19 @@ What lives here today:
 - Component version registry at `group_vars/all/versions.yml` — values are
   `null` placeholders pending dedicated pin commits.
 - Per-shape inventory skeletons under `inventory/<shape>/`.
-- Trust-establishment stub playbook (`site.yml`) that pins SSH host keys on
-  first contact (`StrictHostKeyChecking=accept-new`) and verifies reachability
-  via the `ping` module.
+- Top-level `site.yml`: a trust play that pins SSH host keys on first contact
+  (`StrictHostKeyChecking=accept-new`) and verifies reachability via `ping`,
+  then a node-baseline play that applies the `os_prep` role to every host.
 - Lint configs (`.yamllint`, `.ansible-lint` with `profile: production`) and
   pre-commit hooks — these live at the repo root and apply repo-wide.
 
 What is not here yet:
 
 - The container-runtime and kubeadm roles (L1.1+/L1.2).
-- Populated inventory. Each shape's `hosts.yml` declares the group structure
-  with empty `hosts: {}` until a real target exists.
+- Fully populated inventory. `lab-single-node` carries the lab host (placeholder
+  connection values — real ones kept local); `edge-site` and `ha-bare-metal`
+  remain group-structure skeletons with empty `hosts: {}` until real targets
+  exist.
 
 ## Quick start
 
@@ -110,6 +113,8 @@ bootstrap/
 ├── roles/
 │ └── os_prep/ # OS-prep role (slice-by-slice; see its README)
 ├── site.yml # top-level orchestration playbook
+├── tests/
+│ └── smoke/ # real-host smoke harness + runbook (L1.1.7)
 └── README.md # this file
 ```
 
