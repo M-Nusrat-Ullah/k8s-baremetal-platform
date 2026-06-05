@@ -47,6 +47,11 @@
           A non-swap line containing "swap" was wrongly commented; the
           fstype-column anchor failed.
         success_msg: "Swap-lookalike lines correctly left untouched."
+      # The two decoys are seeded by the Molecule scenario's prepare.yml, so
+      # this anti-over-match check is meaningful only there. A real host's
+      # /etc/fstab has no such fixtures; gate it to the container context (the
+      # inverse of the real-kernel guards used elsewhere in this file).
+      when: ansible_facts['virtualization_type'] in ['docker', 'podman', 'container', 'containerd']
 
     - name: Verify | runtime swap is fully disabled
       ansible.builtin.assert:
@@ -369,12 +374,30 @@
         fail_msg: "snapd is still installed; squashfs is blacklisted, so snapd would fail to mount snaps (ADR-0012)."
         success_msg: "snapd is absent; squashfs blacklist is safe."
 
-    # Real-kernel proof: modprobe resolution reflects the install directive only on
-    # a real, writable kernel. Guarded out of containers; exercised on real hosts
-    # and the deferred L1.1.7 reboot smoke test. Mirrors the /proc/modules check.
-    # NOTE (L1.1.7 refinement): on a kernel where a module is built-in (=y),
-    # modprobe reports it builtin rather than /bin/false; treat that as acceptable
-    # there. This block is validated on real hardware at L1.1.7.
+    # Real-kernel proof: modprobe resolution reflects the install directive only
+    # on a real, writable kernel. Guarded out of containers; exercised on real
+    # hosts and the L1.1.7 reboot smoke test. Mirrors the /proc/modules check.
+    #
+    # Built-in (=y) / absent modules: on this noble 6.x generic kernel squashfs
+    # is compiled in (CONFIG_SQUASHFS=y), so modprobe.d cannot neutralize it and
+    # `modprobe --dry-run` shows no /bin/false. CIS Ubuntu 24.04 §1.1.1 treats a
+    # module built into the kernel — or absent entirely — as "no remediation
+    # necessary": the loadable attack surface it warns about does not exist. We
+    # classify each target with `modinfo --field filename` and pass builtin/absent
+    # on that basis; only genuinely loadable (=m) modules must resolve to
+    # /bin/false. (squashfs's real mitigation is that snapd is purged — ADR-0012 —
+    # so nothing mounts squashfs images; the blacklist line is retained for CIS
+    # alignment and in case a future kernel ships it loadable.)
+    - name: Verify | classify each blacklisted module (loadable / builtin / absent)
+      ansible.builtin.command: "modinfo --field filename {{ item }}"
+      register: os_prep_blacklist_modinfo
+      changed_when: false
+      failed_when: false
+      loop: "{{ os_prep_module_blacklist }}"
+      loop_control:
+        label: "{{ item }}"
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
     - name: Verify | resolve modprobe for each blacklisted module (real kernel)
       ansible.builtin.command: "modprobe --dry-run --verbose {{ item }}"
       register: os_prep_blacklist_modprobe
@@ -385,14 +408,31 @@
         label: "{{ item }}"
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
 
-    - name: Verify | each blacklisted module resolves to /bin/false (real kernel)
+    - name: Verify | each loadable module resolves to /bin/false; builtin/absent tolerated
       ansible.builtin.assert:
         that:
-          - "'/bin/false' in item.stdout"
+          # Pass if the module is built into the kernel (=y; modprobe.d cannot
+          # touch it), or not present at all (no loadable surface), or — the
+          # normal case — loadable (=m) with the install directive redirecting it
+          # to /bin/false. Only a loadable module that still resolves to an insmod
+          # is a real failure (the blacklist drop-in did not take).
+          - >-
+            ('(builtin)' in modinfo_result.stdout)
+            or (modinfo_result.rc != 0)
+            or ('/bin/false' in modprobe_result.stdout)
         fail_msg: >-
-          {{ item.item }} does not resolve to /bin/false (modprobe would still load it).
-        success_msg: "{{ item.item }} resolves to /bin/false (load neutralized)."
-      loop: "{{ os_prep_blacklist_modprobe.results }}"
+          {{ item }} is loadable but does not resolve to /bin/false; the blacklist
+          drop-in did not neutralize it (modprobe would still insmod it).
+        success_msg: >-
+          {{ item }} neutralized:
+          {{ 'built into kernel (=y)' if '(builtin)' in modinfo_result.stdout
+             else 'not present' if modinfo_result.rc != 0
+             else 'loadable, resolves to /bin/false' }}.
+      loop: "{{ os_prep_module_blacklist }}"
       loop_control:
-        label: "{{ item.item }}"
+        index_var: idx
+        label: "{{ item }}"
+      vars:
+        modinfo_result: "{{ os_prep_blacklist_modinfo.results[idx] }}"
+        modprobe_result: "{{ os_prep_blacklist_modprobe.results[idx] }}"
       when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
