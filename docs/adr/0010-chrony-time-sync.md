@@ -6,6 +6,7 @@
 - **Layer:** L1.1
 - **Supersedes:** none
 - **Superseded by:** none
+- **Amended by:** ADR-0013
 
 ## Context
 
@@ -55,6 +56,24 @@ because cross-shape consistency is worth more than saving one package on the
 lab profile.
 
 ### Decision 2 — systemd-timesyncd is stopped, disabled, and masked by the role
+
+> **Amended by ADR-0013 (L1.1.7, verified on hardware).** The decision below —
+> mask timesyncd so it can never race chrony — stands. Its mechanism and
+> rationale are corrected: on noble, installing chrony *removes* the
+> `systemd-timesyncd` package outright (both provide the `time-daemon` virtual
+> package and chrony conflicts with it), so by the time the role acts the unit
+> is usually already absent. Two consequences for the original text below:
+> (1) the "reversible ... unlike removing the package" contrast is moot — the
+> package removal is what actually happens, and the mask is layered on top as a
+> forward-guard against any later reinstall; (2) a single `systemd_service` call
+> with `state: stopped` fails on the absent unit, so the role now gathers
+> service facts, stops/disables timesyncd *only when present*, and writes the
+> `/dev/null` mask symlink unconditionally (idempotent, absence-tolerant). The
+> end state — masked, not racing chrony — is unchanged and is asserted in
+> `verify.yml` exactly as before. Verified on noble 6.8 (GA) and 6.17 (HWE).
+> The "Remove systemd-timesyncd with apt" alternative listed below is, in
+> practice, what the chrony install does; it is no longer a path we reject but
+> the observed behaviour we mask on top of.
 
 Two time daemons must never run at once; they fight over the clock. The chrony
 package's post-install is documented to disable timesyncd, but the exact
