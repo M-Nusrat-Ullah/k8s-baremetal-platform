@@ -1,0 +1,27 @@
+---
+# bootstrap/tests/smoke/reboot.yml
+#
+# L1.1.7 smoke harness — reboot step. Reboots every host in the target
+# inventory and blocks until it is reachable again. Re-running verify.yml
+# after this proves what survives a real boot: modules-load.d, the sysctl.d
+# drop-in, fstab swap-off, the chrony unit + timesyncd mask, and the
+# modprobe.d blacklist — i.e. that the persisted artifacts, not the live
+# converge-time actions, are what's load-bearing.
+#
+# Timeouts are tuned for the HDD lab VM, where boot is slow. A single long
+# wait here is expected, not a hang.
+#
+# Run (between the two verify.yml invocations — see README.md):
+#   ansible-playbook -i inventory/lab-single-node/ tests/smoke/reboot.yml
+
+- name: Reboot target hosts and wait for them to return
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Reboot and wait for the host to come back
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by os_prep L1.1.7 smoke harness"
+        pre_reboot_delay: 5
+        reboot_timeout: 900
+        post_reboot_delay: 30
