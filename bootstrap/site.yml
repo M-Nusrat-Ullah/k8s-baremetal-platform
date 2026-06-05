@@ -1,12 +1,13 @@
+# bootstrap/site.yml
 ---
 # bootstrap/site.yml
 #
 # Top-level orchestration playbook for the bootstrap layer.
 #
-# Current scope: a connectivity-and-trust play that (a) pins each inventory
-# host's SSH key to the controller's known_hosts on first contact, and (b)
-# verifies reachability with a no-op ping. No role logic yet — roles land
-# in L1.1+ and get wired in here as separate plays or via import_role.
+#   Play 1 (trust)        — pin each host's SSH key on first contact, then
+#                           verify reachability with a no-op ping.
+#   Play 2 (node baseline)— apply the os_prep role to every host. Further
+#                           roles get wired in here as separate plays (L1.1+).
 #
 # Host-key handling rationale:
 #   * ansible.cfg sets host_key_checking=True globally. Every connection
@@ -14,15 +15,15 @@
 #     key changes fail the play loudly.
 #   * StrictHostKeyChecking=accept-new lets first-time-seen hosts auto-pin
 #     their keys on the initial run without weakening strictness for known
-#     hosts. This is the OpenSSH-recommended bootstrap pattern (OpenSSH
-#     >= 7.6 — Ubuntu 24.04 ships 9.x, well past).
-#   * Net effect: trust-on-first-use for fresh hosts, strict verification
-#     thereafter. No skip-flag variable, no manual ssh-keyscan dance.
+#     hosts. OpenSSH-recommended bootstrap pattern (>= 7.6; noble ships 9.x).
+#   * Net effect: trust-on-first-use for fresh hosts, strict thereafter.
+#     Play 1 owns trust establishment and must run before Play 2, which
+#     connects under the global strict policy (no accept-new of its own).
 #
 # Run:
-#   ansible-playbook site.yml --check                       # dry-run
-#   ansible-playbook site.yml                               # actual run
-#   ansible-playbook site.yml --limit lab_single_node       # one shape
+#   ansible-playbook -i inventory/lab-single-node/ site.yml --check   # dry-run
+#   ansible-playbook -i inventory/lab-single-node/ site.yml           # apply
+#   ansible-playbook -i inventory/lab-single-node/ site.yml --tags swap
 
 - name: Establish controller trust and verify host reachability
   hosts: all
@@ -33,3 +34,13 @@
   tasks:
     - name: Verify reachability from the controller
       ansible.builtin.ping:
+
+- name: Prepare node OS baseline (os_prep)
+  hosts: all
+  become: true
+  # os_prep gates tasks on swap state and container detection, both sourced
+  # from gathered facts (swaptotal_mb, virtualization_type), so facts are
+  # required here even though the trust play above runs factless.
+  gather_facts: true
+  roles:
+    - role: os_prep
