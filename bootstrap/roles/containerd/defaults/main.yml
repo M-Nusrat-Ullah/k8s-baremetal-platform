@@ -1,0 +1,76 @@
+---
+# Default variables for the containerd role.
+#
+# Override from inventory group_vars, host_vars, or play vars. This file is
+# the role's public configuration surface; the README's variables table is
+# authoritative for what each variable does. Pinned component versions are
+# NOT here -- they live in group_vars/all/versions.yml (the containerd: and
+# cni_plugins: blocks) and are referenced by the tasks directly, e.g.
+# {{ containerd.version }}. Variables are appended per L1.1.x slice.
+
+# --- Install method (L1.1.8) -----------------------------------------------
+# Selects how containerd + runc are installed, and is the seam for multi-OS
+# and air-gapped support. Only "apt" is implemented today
+# (tasks/install-apt.yml): containerd 2.x from the Docker apt repo, pinned to
+# containerd.version and held (apt-mark hold) so an unattended `apt upgrade`
+# cannot drift the runtime out from under the cluster. The preflight task
+# asserts this value is implemented and fails loud otherwise.
+#
+# A future binary-tarball path -- for a distro Docker does not package 2.x for
+# (e.g. an EOL release), or an air-gapped site -- lands as
+# tasks/install-binary.yml and flips this variable, with no change to
+# tasks/main.yml. The base CNI plugins are deliberately NOT behind this seam
+# (see containerd_cni_bin_dir below). See docs/adr/0014.
+containerd_install_method: apt
+
+# --- containerd configuration (L1.1.8) -------------------------------------
+# Path to the containerd config the role renders. Single-sourced so the config
+# task and the Molecule verify reference one value (mirrors os_prep_sysctl_file
+# and os_prep_chrony_conf_file).
+#
+# The role does NOT hand-maintain this file. It runs `containerd config
+# default` (which emits the correct v3 schema for the *pinned* 2.x binary,
+# with the CRI plugin enabled), then sets exactly two values and renders the
+# result: SystemdCgroup = true, and the pinned sandbox image. Generating from
+# the binary's own default both overwrites the CRI-disabled config the Docker
+# package ships and removes the transcription risk of templating a large,
+# version-coupled schema by hand.
+#
+# SystemdCgroup is a non-negotiable invariant on this systemd host: on 1.34 /
+# containerd 2.x the kubelet derives its cgroup driver from the CRI runtime,
+# so an incorrect value here is the root of the classic "kubeadm init hangs /
+# cgroupsPath" failure. It is therefore set unconditionally in the task, not
+# exposed as an override. The sandbox image pin lives in versions.yml
+# (containerd.sandbox_image), matched to the pause version that
+# `kubeadm config images list` reports for kubernetes.version. See
+# docs/adr/0015.
+containerd_config_file: /etc/containerd/config.toml
+
+# --- Base CNI plugins (L1.1.8) ---------------------------------------------
+# Directory the reference CNI plugins (loopback, bridge, host-local, portmap,
+# ...) are unpacked into. These are a CRI / node prerequisite, NOT a Cilium
+# concern: containerd cannot bring up a Pod sandbox without the loopback
+# plugin, and that has to be present before the CNI is installed (Cilium,
+# L1.3). Cilium later drops its own binary into this directory but relies on
+# the base set existing.
+#
+# Version, checksum, and tarball URL live in versions.yml (cni_plugins.*); the
+# tarball is fetched and checksum-verified regardless of
+# containerd_install_method -- apt covers containerd and runc, but the CNI
+# plugins are a pinned upstream tarball either way. That is why they live in
+# this role and are NOT behind the install-method seam. See docs/adr/0014.
+containerd_cni_bin_dir: /opt/cni/bin
+
+# --- apt install paths (L1.1.8) --------------------------------------------
+# Consumed by tasks/install-apt.yml and (later) verify. The Docker apt repo URI
+# and its GPG key URL are version truth (versions.yml: containerd.apt_repo and
+# containerd.apt_signing_key); these two variables are just the on-disk
+# locations the key and the deb822 source are written to, single-sourced so the
+# tasks reference one path. The key is the ASCII-armored file fetched as-is (apt
+# reads .asc directly under Signed-By; no dearmor step), under /etc/apt/keyrings
+# -- the modern signed-by location, not the deprecated apt-key store. The source
+# uses the deb822 .sources format noble ships natively
+# (ansible.builtin.deb822_repository); its basename matches the deb822 repo name
+# ("docker"). The legacy single-line .list format is deliberately not used.
+containerd_apt_keyring_file: /etc/apt/keyrings/docker.asc
+containerd_apt_source_file: /etc/apt/sources.list.d/docker.sources

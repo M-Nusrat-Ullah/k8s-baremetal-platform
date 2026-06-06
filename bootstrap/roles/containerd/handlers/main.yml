@@ -1,0 +1,16 @@
+---
+# Handlers for the containerd role.
+#
+# Handlers run at end-of-play (or earlier on `meta: flush_handlers`) and only
+# when explicitly notified by a task. Guarded with the same fact as the live
+# tasks so a Molecule converge notifies but skips (no service touched in a
+# container), keeping the idempotence converge at changed=0.
+
+- name: Restart containerd
+  ansible.builtin.systemd_service:
+    name: containerd.service
+    state: restarted
+  when: containerd_config_apply_live | bool
+  # Notified by the config render (tasks/config.yml) on a content change. Guarded
+  # like os_prep's Restart chrony: under Molecule the change notifies this
+  # handler, but apply_live is false so it skips -- no restart in a container.

@@ -1,0 +1,79 @@
+---
+# tasks/preflight.yml
+#
+# Fail-fast gate for the containerd role. Runs before any install or config
+# task so a misconfigured request, or a node os_prep has not prepared, stops
+# here with an actionable error rather than failing opaquely deep in the apt
+# or `containerd config default` steps.
+#
+# Two assertions run everywhere -- they are cheap fact checks, valid in the
+# Molecule container and on real hosts:
+#   * the requested install method is implemented;
+#   * the OS family matches the method (the apt path needs Debian-family).
+#
+# The kernel-module checks are a *preflight gate*, guarded to real hosts only,
+# exactly like the AppArmor LSM check in tasks/apparmor.yml (ADR-0011). overlay
+# and br_netfilter are loaded by os_prep (L1.1.2); this role depends on that but
+# does not own it. Asserting their presence reads running-kernel state, which
+# in a container reflects the Docker host rather than anything os_prep did, so
+# it is meaningless under Molecule and is guarded out -- the os_prep Molecule
+# scenario already proves the modules load. On a real host the assert catches a
+# node where os_prep has not run: containerd's overlayfs snapshotter needs
+# overlay, and a missing module would otherwise surface much later as a
+# confusing snapshotter failure. See docs/adr/0014.
+
+- name: Assert the requested containerd install method is implemented
+  ansible.builtin.assert:
+    that:
+      - containerd_install_method in ["apt"]
+    fail_msg: >-
+      containerd_install_method is '{{ containerd_install_method }}', which has
+      no matching tasks/install-{{ containerd_install_method }}.yml. Implemented
+      methods: apt. Set containerd_install_method to a supported value, or add
+      the task file for the new method (it is a seam -- see defaults/main.yml).
+    success_msg: >-
+      containerd install method '{{ containerd_install_method }}' is implemented.
+
+- name: Assert the OS family supports the apt install method
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == "Debian"
+    fail_msg: >-
+      containerd_install_method is 'apt' but this host is
+      {{ ansible_facts['distribution'] }} ({{ ansible_facts['os_family'] }}
+      family); the apt path requires a Debian-family distribution. Use a binary
+      install method on this OS once that seam is implemented.
+    success_msg: >-
+      OS family '{{ ansible_facts['os_family'] }}' supports the apt install method.
+  when: containerd_install_method == "apt"
+
+- name: Determine whether running-kernel module state can be asserted on this host
+  ansible.builtin.set_fact:
+    containerd_preflight_apply_live: "{{ ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd'] }}"
+  # Guarded out under Molecule (geerlingguy 'docker' image): /sys/module state
+  # reflects the Docker host, not os_prep's work. Real hosts get the assert.
+  # Mirrors os_prep_apparmor_apply_live in tasks/apparmor.yml.
+
+- name: Check that required kernel modules are present in the running kernel
+  ansible.builtin.stat:
+    path: "/sys/module/{{ item }}"
+  loop:
+    - overlay
+    - br_netfilter
+  register: containerd_kernel_modules
+  when: containerd_preflight_apply_live | bool
+
+- name: Fail if a required kernel module is not loaded (os_prep L1.1.2 prerequisite)
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      Kernel module '{{ item.item }}' is not present in /sys/module. os_prep
+      (L1.1.2) loads overlay and br_netfilter and must run before this role;
+      overlay backs containerd's overlayfs snapshotter. Run os_prep on this node
+      first.
+    success_msg: "Kernel module '{{ item.item }}' is loaded."
+  loop: "{{ containerd_kernel_modules.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: containerd_preflight_apply_live | bool

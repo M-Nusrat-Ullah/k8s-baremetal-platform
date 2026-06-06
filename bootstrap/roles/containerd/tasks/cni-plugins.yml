@@ -1,0 +1,43 @@
+---
+# tasks/cni-plugins.yml
+#
+# Install the upstream reference CNI plugins (loopback, bridge, host-local,
+# portmap, ...) into containerd_cni_bin_dir. These are a CRI / node prerequisite,
+# not a Cilium concern: containerd cannot bring up a Pod sandbox without the
+# loopback plugin, before any CNI is installed. The tarball is fetched from the
+# containernetworking/plugins release, sha256-verified, and unpacked. Version
+# and checksum are version truth (versions.yml: cni_plugins.*). See docs/adr/0014.
+#
+# Single-arch (amd64) for now: the release tarball is arch-specific. arm64 (telco
+# edge) is the multi-arch follow-up -- it would map ansible_facts['architecture']
+# to the release arch token and carry a per-arch checksum in versions.yml.
+
+- name: Ensure the CNI plugins bin directory exists
+  ansible.builtin.file:
+    path: "{{ containerd_cni_bin_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Fetch the CNI plugins tarball (checksum-verified)
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/containernetworking/plugins/releases/download/{{ cni_plugins.version }}/cni-plugins-linux-amd64-{{ cni_plugins.version }}.tgz
+    dest: "{{ containerd_cni_bin_dir | dirname }}/cni-plugins-linux-amd64-{{ cni_plugins.version }}.tgz"
+    checksum: "{{ cni_plugins.checksum }}"
+    mode: "0644"
+  register: containerd_cni_tarball
+  # Versioned dest + checksum make this idempotent: re-downloaded only on a
+  # version bump or a missing/corrupt file. checksum is sha256:<hex> from
+  # versions.yml, so a tampered or truncated download fails here, not silently.
+
+- name: Unpack the CNI plugins into the bin directory
+  ansible.builtin.unarchive:
+    src: "{{ containerd_cni_tarball.dest }}"
+    dest: "{{ containerd_cni_bin_dir }}"
+    remote_src: true
+    owner: root
+    group: root
+  # No 'creates': a versions.yml bump must re-extract over the old binaries. The
+  # release tarball carries 0755 binaries and fixed mtimes, so mode is preserved
+  # from the archive and, on an unchanged version, unarchive finds nothing to do
+  # (changed=false).
