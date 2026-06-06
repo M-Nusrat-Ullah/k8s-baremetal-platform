@@ -184,6 +184,16 @@ is auto-discovered. Lint and hook commands run from repo root.
 | L2.x  | CNI (Cilium, kube-proxy replacement) and Multus |
 | L3    | Policy (Kyverno) and admission baseline         |
 | L4a   | GitOps bootstrap (Flux), secrets at rest (SOPS) |
+| Telco | Opt-in telco overlay (additive — see below)     |
+
+The **telco overlay** is opt-in and additive to the general-purpose path
+(per the three-audience goal — general platform, telco/5G, and application
+engineers): a hugepages + CPU Manager / Topology Manager kubelet profile, the
+SR-IOV stack (`sriov` device-plugin + `sriov-cni` + the `vfio-pci` module,
+the last added to the os_prep load list and kept disjoint from the CIS
+blacklist per ADR-0007), and a dedicated `node-role: dataplane` node pool.
+Only user-plane CNFs (e.g. a UPF) need it; the general-purpose path and the
+standard control-plane workloads — including the HAProxy/ACS proxy — do not.
 
 Decisions are tracked in [`docs/adr/`](../docs/adr/). Future ADRs will
 cover the Ansible tooling baseline and the versions-registry shape
