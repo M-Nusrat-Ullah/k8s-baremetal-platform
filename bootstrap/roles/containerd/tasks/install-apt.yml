@@ -1,0 +1,72 @@
+---
+# tasks/install-apt.yml
+#
+# Install containerd 2.x from the Docker apt repository, version-pinned and
+# held. Selected by containerd_install_method: apt (the seam in main.yml);
+# preflight.yml has already asserted this method and a Debian-family OS.
+#
+# runc is NOT installed separately: the containerd.io package bundles runc
+# (Docker ships them together, and containerd.io conflicts with a standalone
+# runc), so the pinned containerd.io version transitively pins runc. A binary
+# install method would install and pin runc on its own.
+#
+# The repo is declared in the deb822 .sources format noble ships natively, with
+# the Docker signing key referenced via Signed-By (per-repo trust, not the
+# deprecated global apt-key store). containerd.version, containerd.apt_repo, and
+# containerd.apt_signing_key are version truth (group_vars/all/versions.yml).
+# See docs/adr/0014.
+#
+# Deferred: on a freshly-booted node, unattended-upgrades can hold the dpkg
+# lock; the apt steps here inherit the project DPkg::Lock::Timeout, whose tuning
+# for slow disks is tracked as a separate slice.
+
+- name: Ensure the apt keyrings directory exists
+  ansible.builtin.file:
+    path: "{{ containerd_apt_keyring_file | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Fetch the Docker apt signing key
+  ansible.builtin.get_url:
+    url: "{{ containerd.apt_signing_key }}"
+    dest: "{{ containerd_apt_keyring_file }}"
+    mode: "0644"
+  # ASCII-armored key written as-is; apt reads .asc directly under Signed-By.
+  # Idempotent: get_url skips the download when the destination already exists.
+
+- name: Add the Docker apt repository (containerd source)
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: "{{ containerd.apt_repo }}"
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    signed_by: "{{ containerd_apt_keyring_file }}"
+    state: present
+    enabled: true
+  # suites follows the host codename (noble/jammy/...) so the same role targets
+  # any supported release without editing version truth. Architectures is left
+  # unset deliberately: apt then uses the node's native dpkg architecture, which
+  # keeps the source correct on amd64 and arm64 (telco edge) alike.
+
+- name: Install containerd at the pinned version
+  ansible.builtin.apt:
+    name: "containerd.io={{ containerd.version }}"
+    state: present
+    allow_downgrade: true
+    update_cache: true
+  # update_cache (always, no cache_valid_time): this role adds the Docker repo
+  # in the previous task, so the index must be refreshed before the pinned
+  # install -- a cache refreshed by an earlier role in the same play would not
+  # contain the Docker source. os_prep can use cache_valid_time because it adds
+  # no repositories; this role cannot. allow_downgrade makes the pin
+  # authoritative: a node carrying a newer, unpinned containerd.io (the
+  # CLUSTER_BASELINE testbed state) is corrected back to the pinned version.
+
+- name: Hold containerd at the pinned version
+  ansible.builtin.dpkg_selections:
+    name: containerd.io
+    selection: hold
+  # apt-mark hold: an unattended `apt upgrade` (or unattended-upgrades) cannot
+  # move containerd.io off the pinned version out from under the cluster.
+  # Version changes go through a deliberate versions.yml bump and re-run.

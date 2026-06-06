@@ -1,0 +1,45 @@
+---
+# containerd — container runtime for Kubernetes nodes (L1.1.8).
+#
+# Per-area task files are imported here with tags, mirroring os_prep: each task
+# file owns one concern and this dispatcher keeps the role flat and the tag
+# surface explicit. Static import_tasks is used for tag propagation and
+# parse-time validation. The install step is the one exception -- it uses
+# include_tasks because its filename is templated on containerd_install_method
+# (the install-method seam; see defaults/main.yml).
+#
+# Selective execution (tags grow as concerns land):
+#   ansible-playbook site.yml --tags preflight
+#   ansible-playbook site.yml --tags install
+#   ansible-playbook site.yml --tags cni
+#   ansible-playbook site.yml --tags config    # re-render config + restart only
+# import/include blocks are added per concern as each task file lands, exactly
+# as os_prep's main.yml was built up per L1.1.x slice.
+
+- name: Preflight checks (install method, OS, os_prep kernel prerequisites)
+  ansible.builtin.import_tasks: preflight.yml
+  tags:
+    - preflight
+
+- name: Install containerd via the selected method
+  ansible.builtin.include_tasks: "install-{{ containerd_install_method }}.yml"
+  tags:
+    - install
+  # include (not import): the filename is templated on the install-method seam.
+  # preflight.yml has already asserted the method is implemented.
+
+# cni-plugins is independent of the install step (it only drops binaries into
+# containerd_cni_bin_dir) -- safe to run alone via --tags cni. Ordered here so a
+# full run lays the plugins down before the config + service start.
+- name: Install the base CNI plugins (CRI prerequisite)
+  ansible.builtin.import_tasks: cni-plugins.yml
+  tags:
+    - cni
+
+# config MUST stay after install: it runs `containerd config default`, which
+# needs the containerd binary present. It renders the CRI config (overwriting
+# the Docker package's CRI-disabled file) and, on real hosts, starts the service.
+- name: Configure containerd and start the service
+  ansible.builtin.import_tasks: config.yml
+  tags:
+    - config

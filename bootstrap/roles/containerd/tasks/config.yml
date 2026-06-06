@@ -1,0 +1,74 @@
+---
+# tasks/config.yml
+#
+# Generate /etc/containerd/config.toml from the runtime's own default, set the
+# systemd cgroup driver and pin the sandbox image, then (on real hosts) ensure
+# the service is enabled and running. Structured like tasks/chrony.yml: a guard
+# fact splits a persist half that runs everywhere (asserted by Molecule) from a
+# live half that needs a real systemd manager.
+#
+#   * Persist (everywhere) -> generate the default config and render
+#     containerd_config_file with SystemdCgroup = true and the pinned sandbox
+#     image. Generating from `containerd config default` (rather than hand-
+#     templating a large, version-coupled v3 schema) yields the correct schema
+#     for the pinned binary with the CRI plugin ENABLED -- which also overwrites
+#     the CRI-disabled config.toml the Docker .deb ships
+#     (disabled_plugins = ["cri"]). Asserted in verify.yml. See docs/adr/0015.
+#   * Live (guarded)       -> enable + start containerd. Unit state needs a real
+#     manager, so it is guarded out of containers exactly like the chrony slice;
+#     restart-on-config-change is a handler (handlers/main.yml), also guarded.
+#
+# `containerd config default` is the one command task in the role: ADR-0004
+# prefers modules, but the runtime's default config has no module equivalent and
+# the subcommand only prints (no daemon, no system change), so changed_when is
+# false and idempotence holds.
+
+- name: Determine whether containerd service state can be managed on this host
+  ansible.builtin.set_fact:
+    containerd_config_apply_live: "{{ ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd'] }}"
+  # 'docker' under Molecule (geerlingguy image): generate and render the config
+  # there so both are asserted, but skip the enable/start and restart handler.
+  # Real hosts get both halves. Mirrors os_prep_chrony_apply_live.
+
+- name: Generate the containerd default configuration
+  ansible.builtin.command:
+    cmd: containerd config default
+  register: containerd_config_default
+  changed_when: false
+  # Read-only generator: prints the pinned binary's default v3 config (CRI
+  # enabled) without touching the system, so changed_when is false.
+
+- name: Render config.toml with the systemd cgroup driver and pinned sandbox image
+  ansible.builtin.copy:
+    content: >-
+      {{ (containerd_config_default.stdout
+          | regex_replace(containerd_re_systemd, containerd_sub_systemd)
+          | regex_replace(containerd_re_sandbox, containerd_sub_sandbox)) ~ "\n" }}
+    dest: "{{ containerd_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    containerd_re_systemd: '(?m)^(\s*)SystemdCgroup\s*=.*$'
+    containerd_sub_systemd: '\g<1>SystemdCgroup = true'
+    containerd_re_sandbox: "(?m)^(\\s*)sandbox = '.*'$"
+    containerd_sub_sandbox: "\\g<1>sandbox = '{{ containerd.sandbox_image }}'"
+  notify: Restart containerd
+  # Generate -> transform -> idempotent copy, not generate-then-edit-in-place:
+  # copy compares the rendered result to disk, so an unchanged run is changed=0
+  # and the Docker package's CRI-disabled file is fully replaced. The two regexes
+  # are anchored to the keys, so they hold whatever the default's value/spacing;
+  # verify.yml asserts both landed (SystemdCgroup true, sandbox pinned), catching
+  # a schema drift loudly rather than silently shipping the default. notify fires
+  # only on a content change; the handler is guarded, so under Molecule it is
+  # notified on first converge and skips (apply_live false).
+
+- name: Enable and start containerd
+  ansible.builtin.systemd_service:
+    name: containerd.service
+    state: started
+    enabled: true
+  when: containerd_config_apply_live | bool
+  # state: started (not restarted): ensure running + enabled at boot. Restarts on
+  # config change are the handler's job, so an unchanged re-run is a no-op and
+  # idempotence holds on real hosts too. Guarded out of containers like chrony.
