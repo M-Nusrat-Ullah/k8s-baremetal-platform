@@ -1,10 +1,20 @@
 ---
 # bootstrap/roles/kube_bootstrap/tasks/untaint.yml
 #
-# Removes the node-role.kubernetes.io/control-plane:NoSchedule taint so
-# workloads can schedule on the single node in lab-single-node shape.
+# Removes the control-plane NoSchedule taint for lab-single-node shape so
+# workloads can schedule on the only available node.
 #
-# Gated in main.yml: runs only when deploy_shape == "lab-single-node".
-# Never runs for edge-site or ha-bare-metal (workers absorb scheduling).
+# Gated in main.yml: runs only when kube_bootstrap_deploy_shape == "lab-single-node".
+# Never runs for edge-site or ha-bare-metal (workers absorb scheduling there).
 #
-# TODO (slice G): implement kubectl taint removal task.
+# The `kubectl taint` command exits 0 whether or not the taint was present
+# (with the trailing `-` removal syntax), so this task is naturally idempotent.
+
+- name: "Kube_bootstrap | Remove control-plane NoSchedule taint (lab-single-node)"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kube_bootstrap_admin_conf }}
+      taint nodes --all
+      node-role.kubernetes.io/control-plane:NoSchedule-
+  register: kube_bootstrap_untaint_result
+  changed_when: "'untainted' in kube_bootstrap_untaint_result.stdout"
