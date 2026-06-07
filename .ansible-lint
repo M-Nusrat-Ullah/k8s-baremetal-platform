@@ -18,6 +18,11 @@ exclude_paths:
   - bootstrap/.venv/
   - bootstrap/collections/
   - bootstrap/molecule-template/   # template only; real scenarios land per-role in L1.1+
+  - bootstrap/roles/*/molecule/    # molecule converge/verify playbooks reference inventory
+                                   # and vars that exist only in molecule's ephemeral context;
+                                   # ansible-lint syntax-check is not meaningful in isolation.
+                                   # yamllint still covers YAML correctness; `molecule converge`
+                                   # is the authoritative validator for these playbooks.
 
 warn_list:
   - experimental          # surface experimental-rule findings, don't fail on them
