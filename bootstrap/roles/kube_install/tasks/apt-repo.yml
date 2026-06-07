@@ -2,7 +2,33 @@
 # bootstrap/roles/kube_install/tasks/apt-repo.yml
 #
 # Adds the pkgs.k8s.io per-minor apt repository and its signing key.
-# Implementation written in slice B (after this scaffold is committed).
-# The key and repo URL come from group_vars/all/versions.yml kubernetes.*
-#
-# TODO (slice B): implement signing key download + apt source entry.
+# The repo is scoped to a single Kubernetes minor (v1.34). Upgrading to
+# v1.35 requires changing both kubernetes.apt_repo and
+# kubernetes.apt_signing_key in versions.yml — the repo URL is per-minor,
+# not per-patch.
+
+- name: "Kube_install | Create apt keyrings directory"
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: "Kube_install | Download pkgs.k8s.io signing key"
+  ansible.builtin.get_url:
+    url: "{{ kubernetes.apt_signing_key }}"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    owner: root
+    group: root
+    mode: "0644"
+    force: false # idempotent: skip if file already present and unchanged
+
+- name: "Kube_install | Add pkgs.k8s.io apt repository"
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc]
+      {{ kubernetes.apt_repo }} /
+    filename: kubernetes
+    state: present
+    update_cache: true
