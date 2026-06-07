@@ -70,3 +70,4 @@ ADR-0005 amending ADR-0004 is the worked example.
 | 0018 | cgroupDriver omission — GA CRI auto-detect                            | L1.2   | Accepted |
 | 0019 | Cilium cluster-pool IPAM; podSubnet omitted from ClusterConfiguration | L1.2   | Accepted |
 | 0020 | kube-install and kube-bootstrap two-role split                        | L1.2   | Accepted |
+| 0021 | site.yml role composition — single play per role; kube_bootstrap self-gates | L1.2 | Accepted |
