@@ -1,0 +1,46 @@
+{# bootstrap/roles/kube_bootstrap/templates/kubeadm-config.yaml.j2 #}
+{#                                                                     #}
+{# Multi-document kubeadm configuration for `kubeadm init`.           #}
+{# API version: kubeadm.k8s.io/v1beta4 (current for Kubernetes 1.34). #}
+{# v1beta3 is deprecated since 1.31 and not used here.                #}
+{#                                                                     #}
+{# Key structural decisions (see ADRs):                                #}
+{#   skipPhases: [addon/kube-proxy]                                    #}
+{#     Cilium runs in kube-proxy-replacement mode; kube-proxy must     #}
+{#     never be installed. Removing it after init is not acceptable.   #}
+{#   cgroupDriver: omitted                                             #}
+{#     KubeletCgroupDriverFromCRI is GA in 1.34; the kubelet asks      #}
+{#     containerd (which reports systemd via SystemdCgroup=true from   #}
+{#     L1.1.8). The field is deprecated in 1.34 for removal >=1.36.   #}
+{#     kubeadm's own default covers the 1.32 floor. Explicit field     #}
+{#     would be a deprecated value on a collision course with the      #}
+{#     1.34->1.35->1.36 upgrade roadmap.                               #}
+{#   networking.podSubnet: omitted                                     #}
+{#     Cilium cluster-pool IPAM manages per-node CIDRs. Setting        #}
+{#     podSubnet enables --allocate-node-cidrs in kube-controller-     #}
+{#     manager, which conflicts with Cilium managing the allocation.   #}
+{#   KubeletConfiguration: omitted in L1.2                             #}
+{#     No kubelet fields needed now. CIS kubelet hardening is a later  #}
+{#     dedicated slice to avoid scope creep.                           #}
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+nodeRegistration:
+  # Explicit CRI socket even though kubeadm autodetects containerd.
+  # Makes the intent unambiguous and prevents surprises if another CRI
+  # socket appears on the host.
+  criSocket: "{{ kube_bootstrap_cri_socket }}"
+skipPhases:
+  - addon/kube-proxy
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: "v{{ kubernetes.version | regex_replace('-.*$', '') }}"
+# controlPlaneEndpoint omitted for lab-single-node and edge-site.
+# Required for ha-bare-metal (set to the keepalived VIP FQDN/IP:6443).
+{% if kube_bootstrap_control_plane_endpoint != "" %}
+controlPlaneEndpoint: "{{ kube_bootstrap_control_plane_endpoint }}"
+{% endif %}
+networking:
+  serviceSubnet: "{{ kube_bootstrap_service_subnet }}"
+  # podSubnet intentionally omitted — see header comment.

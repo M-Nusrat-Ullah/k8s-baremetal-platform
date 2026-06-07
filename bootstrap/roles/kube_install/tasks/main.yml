@@ -1,0 +1,15 @@
+---
+# bootstrap/roles/kube_install/tasks/main.yml
+
+- name: "Kube_install | Apt repo"
+  ansible.builtin.include_tasks: apt-repo.yml
+  tags: [kube_install, apt]
+
+- name: "Kube_install | Install packages"
+  ansible.builtin.include_tasks: install.yml
+  tags: [kube_install, packages]
+
+- name: "Kube_install | Pre-pull control-plane images"
+  ansible.builtin.include_tasks: prepull.yml
+  tags: [kube_install, prepull]
+  when: kube_install_prepull_images | bool

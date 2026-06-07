@@ -1,0 +1,10 @@
+---
+# bootstrap/roles/kube_bootstrap/tasks/untaint.yml
+#
+# Removes the node-role.kubernetes.io/control-plane:NoSchedule taint so
+# workloads can schedule on the single node in lab-single-node shape.
+#
+# Gated in main.yml: runs only when deploy_shape == "lab-single-node".
+# Never runs for edge-site or ha-bare-metal (workers absorb scheduling).
+#
+# TODO (slice G): implement kubectl taint removal task.

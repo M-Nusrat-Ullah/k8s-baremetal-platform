@@ -1,0 +1,39 @@
+---
+# bootstrap/roles/kube_bootstrap/defaults/main.yml
+
+# Deploy shape. Controls which tasks run:
+#   lab-single-node  — init only; control-plane taint removed so workloads
+#                      schedule. No workers.
+#   edge-site        — init on first CP + join on workers (no HA).
+#   ha-bare-metal    — init on first CP + join on additional CPs + workers.
+#                      Requires controlPlaneEndpoint and upload_certs.
+kube_bootstrap_deploy_shape: "lab-single-node"
+
+# Kubernetes API server advertise address.
+# Set to the node's primary IP. Used in ClusterConfiguration and in
+# the kubeconfig written to ~/.kube/config.
+kube_bootstrap_apiserver_advertise_address: "{{ ansible_default_ipv4.address }}"
+
+# Service subnet. Set explicitly; do not rely on kubeadm's default.
+kube_bootstrap_service_subnet: "10.96.0.0/12"
+
+# Pod subnet: intentionally omitted from ClusterConfiguration.
+# Cilium cluster-pool IPAM manages per-node pod CIDRs; kubeadm does not
+# allocate them. See ADR-00XX (Cilium IPAM → podSubnet omission).
+
+# CRI socket. Explicit even though kubeadm autodetects containerd.
+kube_bootstrap_cri_socket: "unix:///run/containerd/containerd.sock"
+
+# Path where kubeadm writes the admin kubeconfig.
+kube_bootstrap_admin_conf: "/etc/kubernetes/admin.conf"
+
+# Destination for the operator kubeconfig (on the control-plane host).
+kube_bootstrap_user_kubeconfig: "{{ ansible_env.HOME }}/.kube/config"
+
+# For ha-bare-metal only. Deferred; placeholder to avoid undefined-var
+# errors if the template references it.
+kube_bootstrap_control_plane_endpoint: ""
+
+# Token TTL for worker join. 0 = never expires (convenient for lab;
+# tighten for production — 24h is a reasonable production default).
+kube_bootstrap_token_ttl: "0"

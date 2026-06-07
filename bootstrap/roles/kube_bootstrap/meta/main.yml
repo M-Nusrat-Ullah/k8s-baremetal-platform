@@ -1,0 +1,20 @@
+---
+# bootstrap/roles/kube_bootstrap/meta/main.yml
+
+galaxy_info:
+  role_name: kube_bootstrap
+  author: Nusrat Ullah
+  description: >
+    Forms the Kubernetes cluster: kubeadm init on the control plane,
+    kubeadm join on workers, kubeconfig setup, and single-node untaint.
+    Real-host only — no Molecule scenario by design (see README).
+  license: MIT
+  min_ansible_version: "2.20"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+
+dependencies:
+  # kube_install must have run on all target nodes before kube_bootstrap.
+  - role: kube_install

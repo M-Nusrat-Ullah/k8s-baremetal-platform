@@ -1,0 +1,8 @@
+---
+# bootstrap/roles/kube_install/tasks/apt-repo.yml
+#
+# Adds the pkgs.k8s.io per-minor apt repository and its signing key.
+# Implementation written in slice B (after this scaffold is committed).
+# The key and repo URL come from group_vars/all/versions.yml kubernetes.*
+#
+# TODO (slice B): implement signing key download + apt source entry.

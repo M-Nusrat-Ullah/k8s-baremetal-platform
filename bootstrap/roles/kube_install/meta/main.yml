@@ -1,0 +1,22 @@
+---
+# bootstrap/roles/kube_install/meta/main.yml
+
+galaxy_info:
+  role_name: kube_install
+  author: Nusrat Ullah
+  description: >
+    Installs kubeadm, kubelet, and kubectl from pkgs.k8s.io at a pinned
+    version, applies dpkg hold, and pre-pulls control-plane images.
+    Testable with Molecule (Docker driver). Does not form a cluster.
+  license: MIT
+  min_ansible_version: "2.20"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+
+dependencies:
+  # os_prep and containerd must run before kube_install on every node.
+  # Declared here for documentation; enforcement is via playbook ordering.
+  - role: os_prep
+  - role: containerd

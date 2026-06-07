@@ -1,0 +1,8 @@
+---
+# bootstrap/roles/kube_install/tasks/install.yml
+#
+# Installs kubeadm, kubelet, kubectl at the pinned version and applies
+# dpkg hold to prevent unintended upgrades.
+# Also enables (but does not start) the kubelet systemd unit.
+#
+# TODO (slice C): implement install + hold + enable.
