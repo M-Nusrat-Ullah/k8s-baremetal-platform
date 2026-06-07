@@ -28,7 +28,7 @@ kube_bootstrap_cri_socket: "unix:///run/containerd/containerd.sock"
 kube_bootstrap_admin_conf: "/etc/kubernetes/admin.conf"
 
 # Destination for the operator kubeconfig (on the control-plane host).
-kube_bootstrap_user_kubeconfig: "{{ ansible_env.HOME }}/.kube/config"
+kube_bootstrap_user_kubeconfig: "{{ ansible_facts['env']['HOME'] }}/.kube/config"
 
 # For ha-bare-metal only. Deferred; placeholder to avoid undefined-var
 # errors if the template references it.
