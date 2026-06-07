@@ -19,7 +19,6 @@
 # Deferred: on a freshly-booted node, unattended-upgrades can hold the dpkg
 # lock; the apt steps here inherit the project DPkg::Lock::Timeout, whose tuning
 # for slow disks is tracked as a separate slice.
-
 - name: Ensure the apt keyrings directory exists
   ansible.builtin.file:
     path: "{{ containerd_apt_keyring_file | dirname }}"
@@ -33,6 +32,16 @@
     mode: "0644"
   # ASCII-armored key written as-is; apt reads .asc directly under Signed-By.
   # Idempotent: get_url skips the download when the destination already exists.
+
+- name: Ensure python3-debian is present (required by deb822_repository)
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: false
+  # ansible.builtin.deb822_repository uses the python-debian library on the
+  # target to parse and write .sources files. Ubuntu 24.04 full installs ship
+  # it; minimal/cloud images may not. Installing it here (not in a Molecule
+  # pre-task) makes the role self-contained on any noble variant.
 
 - name: Add the Docker apt repository (containerd source)
   ansible.builtin.deb822_repository:
