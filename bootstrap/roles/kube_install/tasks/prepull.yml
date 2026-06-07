@@ -1,11 +1,24 @@
 ---
 # bootstrap/roles/kube_install/tasks/prepull.yml
 #
-# Runs `kubeadm config images pull` to pre-fetch control-plane images
-# before kubeadm init. Decouples slow pulls (especially on HDD) from
-# the init timeout window.
+# Pre-pulls control-plane images before kubeadm init.
 #
-# Only runs when kube_prepull_images is true (see defaults/main.yml).
-# Skipped in Molecule scenarios where containerd is absent.
+# Why: on HDD hosts, pulling ~700 MB of control-plane images inside the
+# kubeadm init timeout window risks a timeout failure. Running the pull
+# as a discrete step beforehand decouples slow I/O from the init state
+# machine. On SSD hosts this is a no-op in effect (images already cached
+# after the first run).
 #
-# TODO (slice D): implement the pull command task.
+# Skipped when kube_install_prepull_images is false (Molecule scenarios
+# where containerd is absent).
+#
+# The kubeadm version used here is whatever `kubeadm` resolves to on PATH
+# after the install task — i.e., the pinned version from install.yml.
+# No version flag is needed; kubeadm derives the image list from its own
+# embedded version.
+
+- name: "Kube_install | Pre-pull control-plane images"
+  ansible.builtin.command:
+    cmd: kubeadm config images pull
+  register: kube_install_prepull_result
+  changed_when: kube_install_prepull_result.rc == 0
