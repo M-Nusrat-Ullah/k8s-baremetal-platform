@@ -44,3 +44,48 @@
   gather_facts: true
   roles:
     - role: os_prep
+
+# ------------------------------------------------------------------------------
+# Play 3 — container runtime (containerd)
+# ------------------------------------------------------------------------------
+- name: Install container runtime (containerd)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: containerd
+
+# ------------------------------------------------------------------------------
+# Play 4 — kubernetes packages (kube_install)
+# ------------------------------------------------------------------------------
+- name: Install kubeadm, kubelet, kubectl (kube_install)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: kube_install
+
+# ------------------------------------------------------------------------------
+# Play 5 — cluster bootstrap (kube_bootstrap)
+#
+# Targets `all`; the role self-gates per host (roles/kube_bootstrap/tasks/
+# main.yml): init + kubeconfig → control_plane[0]; untaint → control_plane[0]
+# on lab-single-node; worker join → hosts in `workers`.
+#
+# Single play (not split CP/worker) because that routing already lives in the
+# role. Init-before-join ordering holds under the default `linear` strategy:
+# the join include follows the init/kubeconfig includes and linear synchronises
+# all hosts at each task. Do not switch this play to `free` without revisiting
+# that guarantee.
+#
+# Token flow: join.yml runs `kubeadm token create` on the CP via delegate_to +
+# run_once; workers consume the registered command. If a worker reports
+# kube_bootstrap_join_command_raw undefined at runtime, the fix is
+# delegate_facts/hostvars — not a play-structure change.
+# ------------------------------------------------------------------------------
+- name: Bootstrap the cluster (kube_bootstrap self-gates per host role)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: kube_bootstrap
