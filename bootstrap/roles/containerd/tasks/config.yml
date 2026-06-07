@@ -40,10 +40,9 @@
 
 - name: Render config.toml with the systemd cgroup driver and pinned sandbox image
   ansible.builtin.copy:
-    content: >-
-      {{ (containerd_config_default.stdout
-          | regex_replace(containerd_re_systemd, containerd_sub_systemd)
-          | regex_replace(containerd_re_sandbox, containerd_sub_sandbox)) ~ "\n" }}
+    content: "{{ (containerd_config_default.stdout
+      | regex_replace(containerd_re_systemd, containerd_sub_systemd)
+      | regex_replace(containerd_re_sandbox, containerd_sub_sandbox)) }}"
     dest: "{{ containerd_config_file }}"
     owner: root
     group: root
