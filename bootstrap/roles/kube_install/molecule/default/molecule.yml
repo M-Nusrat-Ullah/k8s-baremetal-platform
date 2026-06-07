@@ -3,12 +3,17 @@
 #
 # Tests the installable surface of kube_install (apt repo, packages, hold,
 # kubelet unit state). Does NOT test image pre-pull — containerd is absent
-# in the Docker driver image, and kube_prepull_images is set false in
-# converge.yml. init/join are real-host only; there is no Molecule scenario
-# for kube_bootstrap by design.
+# in the Docker driver image, and kube_install_prepull_images is set false
+# in converge.yml. init/join are real-host only; there is no Molecule
+# scenario for kube_bootstrap by design.
+#
+# privileged: true — required for reliable systemd-in-docker across host
+# configurations. This is disposable test infrastructure, not a workload.
+# Matches the containerd scenario and the geerlingguy/debops/kubespray pattern.
 
 dependency:
   name: galaxy
+  enabled: false
 
 driver:
   name: docker
@@ -17,14 +22,14 @@ platforms:
   - name: kube-install-noble
     image: geerlingguy/docker-ubuntu2404-ansible:latest
     pre_build_image: true
-    privileged: false
-    cgroupns_mode: host
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    privileged: true
     command: /lib/systemd/systemd
+    cgroupns_mode: host
     tmpfs:
       - /run
       - /tmp
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
 
 provisioner:
   name: ansible
@@ -32,11 +37,16 @@ provisioner:
     defaults:
       stdout_callback: default
       callback_result_format: yaml
+      # Resolve `role: kube_install` from bootstrap/roles/.
+      # Three ../ from scenario dir: molecule/default -> molecule -> kube_install -> roles
+      roles_path: "${MOLECULE_SCENARIO_DIRECTORY}/../../../"
+      # Pin to the repo's collections, same as real site.yml runs.
+      # Four ../ from scenario dir reaches bootstrap/, then into collections/.
+      collections_path: "${MOLECULE_SCENARIO_DIRECTORY}/../../../../collections"
   inventory:
     host_vars:
       kube-install-noble:
-        # Pre-pull disabled: no containerd runtime available in this image.
-        kube_prepull_images: false
+        kube_install_prepull_images: false
 
 verifier:
   name: ansible
