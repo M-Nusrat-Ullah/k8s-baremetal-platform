@@ -38,5 +38,10 @@ provisioner:
       # molecule/default -> molecule -> containerd -> roles -> bootstrap, then
       # into collections/ (the dir that contains ansible_collections/).
       collections_path: "${MOLECULE_SCENARIO_DIRECTORY}/../../../../collections"
+      # Molecule runs ansible-playbook with its own ephemeral inventory, so
+      # bootstrap/ansible.cfg's `roles_path = ./roles` is not in effect.
+      # Three ../ from scenario dir reaches bootstrap/roles/, so `role: containerd`
+      # resolves. molecule/default -> molecule -> containerd -> roles
+      roles_path: "${MOLECULE_SCENARIO_DIRECTORY}/../../../"
 verifier:
   name: ansible
