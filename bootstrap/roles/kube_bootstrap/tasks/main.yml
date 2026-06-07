@@ -1,0 +1,26 @@
+---
+# bootstrap/roles/kube_bootstrap/tasks/main.yml
+
+- name: "Kube_bootstrap | Control-plane init"
+  ansible.builtin.include_tasks: init.yml
+  tags: [kube_bootstrap, init]
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: "Kube_bootstrap | Kubeconfig setup"
+  ansible.builtin.include_tasks: kubeconfig.yml
+  tags: [kube_bootstrap, kubeconfig]
+  when: inventory_hostname == groups['control_plane'][0]
+
+- name: "Kube_bootstrap | Remove control-plane taint (lab-single-node)"
+  ansible.builtin.include_tasks: untaint.yml
+  tags: [kube_bootstrap, untaint]
+  when:
+    - inventory_hostname == groups['control_plane'][0]
+    - kube_bootstrap_deploy_shape == "lab-single-node"
+
+- name: "Kube_bootstrap | Worker join"
+  ansible.builtin.include_tasks: join.yml
+  tags: [kube_bootstrap, join]
+  when:
+    - "'workers' in groups"
+    - inventory_hostname in groups['workers']

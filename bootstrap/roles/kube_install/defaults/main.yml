@@ -1,0 +1,23 @@
+---
+# bootstrap/roles/kube_install/defaults/main.yml
+
+# Package names installed on every node (control-plane and worker).
+# Version is sourced from group_vars/all/versions.yml kubernetes.version.
+# The hold is applied via dpkg immediately after install; these three
+# packages must always be held together to prevent skew.
+kube_install_packages:
+  - kubeadm
+  - kubelet
+  - kubectl
+
+# The kubelet systemd unit is enabled (but NOT started) by this role.
+# kubeadm init/join writes /var/lib/kubelet/config.yaml at bootstrap time;
+# the unit will crash-loop/activating until that happens — expected, not
+# a failure. Do NOT pre-write kubelet config here; kubeadm owns it.
+kube_install_kubelet_service_state: stopped
+kube_install_kubelet_service_enabled: true
+
+# Image pre-pull: runs `kubeadm config images pull` before init to decouple
+# the slow image-pull phase from the init timeout. Recommended on HDD hosts.
+# Set false to skip (e.g., in Molecule scenarios where containerd is absent).
+kube_install_prepull_images: true

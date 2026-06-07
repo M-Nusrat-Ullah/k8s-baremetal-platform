@@ -1,0 +1,13 @@
+---
+# bootstrap/roles/kube_bootstrap/tasks/init.yml
+#
+# Runs `kubeadm init --config` on the first control-plane node.
+# Uses the templated kubeadm-config.yaml.j2 (see templates/).
+#
+# Expected post-init state (intentional — not a failure):
+#   - Control-plane static pods + etcd: Running
+#   - Node status: NotReady  (no CNI yet; Cilium arrives in L2)
+#   - CoreDNS pods: Pending  (same reason)
+#   - kube-proxy DaemonSet: absent (skipPhases: [addon/kube-proxy])
+#
+# TODO (slice G): implement init task + idempotency guard.

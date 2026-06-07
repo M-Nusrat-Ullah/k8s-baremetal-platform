@@ -1,0 +1,42 @@
+---
+# bootstrap/roles/kube_install/molecule/default/molecule.yml
+#
+# Tests the installable surface of kube_install (apt repo, packages, hold,
+# kubelet unit state). Does NOT test image pre-pull — containerd is absent
+# in the Docker driver image, and kube_prepull_images is set false in
+# converge.yml. init/join are real-host only; there is no Molecule scenario
+# for kube_bootstrap by design.
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: kube-install-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: false
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    command: /lib/systemd/systemd
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      stdout_callback: default
+      callback_result_format: yaml
+  inventory:
+    host_vars:
+      kube-install-noble:
+        # Pre-pull disabled: no containerd runtime available in this image.
+        kube_prepull_images: false
+
+verifier:
+  name: ansible

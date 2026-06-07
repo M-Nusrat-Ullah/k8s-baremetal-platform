@@ -1,0 +1,20 @@
+---
+# bootstrap/roles/kube_install/molecule/default/verify.yml
+#
+# Assertions covering the installable surface of kube_install.
+# Fails loudly on any unmet condition — no silent passes.
+#
+# Full assertions written in slice E after install.yml and apt-repo.yml
+# are implemented. Skeleton committed now to keep the Molecule directory
+# complete and pre-commit-clean.
+
+- name: Verify
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: "PLACEHOLDER — verify tasks added in slice E"
+      ansible.builtin.assert:
+        that: true
+        success_msg: "Placeholder; real assertions follow in slice E."

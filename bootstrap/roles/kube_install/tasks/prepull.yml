@@ -1,0 +1,11 @@
+---
+# bootstrap/roles/kube_install/tasks/prepull.yml
+#
+# Runs `kubeadm config images pull` to pre-fetch control-plane images
+# before kubeadm init. Decouples slow pulls (especially on HDD) from
+# the init timeout window.
+#
+# Only runs when kube_prepull_images is true (see defaults/main.yml).
+# Skipped in Molecule scenarios where containerd is absent.
+#
+# TODO (slice D): implement the pull command task.
