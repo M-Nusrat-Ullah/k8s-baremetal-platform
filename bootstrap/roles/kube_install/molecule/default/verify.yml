@@ -1,20 +1,119 @@
 ---
 # bootstrap/roles/kube_install/molecule/default/verify.yml
 #
-# Assertions covering the installable surface of kube_install.
+# Asserts the full installable surface of kube_install.
 # Fails loudly on any unmet condition — no silent passes.
 #
-# Full assertions written in slice E after install.yml and apt-repo.yml
-# are implemented. Skeleton committed now to keep the Molecule directory
-# complete and pre-commit-clean.
+# Coverage:
+#   - apt keyring file present with correct permissions
+#   - apt source file present and contains the expected repo URL
+#   - kubeadm, kubelet, kubectl installed at the pinned version
+#   - all three packages are held (dpkg --get-selections)
+#   - kubelet systemd unit is enabled
+#
+# Not covered (real-host only):
+#   - kubelet running state (crash-loops until kubeadm init; expected)
+#   - image pre-pull (containerd absent in Docker driver image)
 
 - name: Verify
   hosts: all
-  gather_facts: true
+  gather_facts: false
   become: true
 
+  vars:
+    kube_expected_version: "1.34.8-1.1"
+    kube_keyring_path: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    kube_apt_repo_url: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/"
+
   tasks:
-    - name: "PLACEHOLDER — verify tasks added in slice E"
+    - name: "Verify | Keyring file exists"
+      ansible.builtin.stat:
+        path: "{{ kube_keyring_path }}"
+      register: kube_verify_keyring
+
+    - name: "Verify | Assert keyring file is present and has correct mode"
       ansible.builtin.assert:
-        that: true
-        success_msg: "Placeholder; real assertions follow in slice E."
+        that:
+          - kube_verify_keyring.stat.exists
+          - kube_verify_keyring.stat.mode == '0644'
+        fail_msg: >-
+          Keyring file {{ kube_keyring_path }} is missing or has wrong
+          permissions (got {{ kube_verify_keyring.stat.mode | default('absent') }},
+          expected 0644).
+
+    - name: "Verify | Read apt sources file"
+      ansible.builtin.slurp:
+        src: /etc/apt/sources.list.d/kubernetes.list
+      register: kube_verify_apt_source
+
+    - name: "Verify | Assert apt source contains expected repo URL"
+      ansible.builtin.assert:
+        that:
+          - kube_apt_repo_url in (kube_verify_apt_source.content | b64decode)
+        fail_msg: >-
+          /etc/apt/sources.list.d/kubernetes.list does not contain
+          expected URL {{ kube_apt_repo_url }}.
+
+    - name: "Verify | Gather installed package facts"
+      ansible.builtin.package_facts:
+        manager: apt
+
+    - name: "Verify | Assert kubeadm is installed at pinned version"
+      ansible.builtin.assert:
+        that:
+          - "'kubeadm' in ansible_facts.packages"
+          - ansible_facts.packages['kubeadm'][0].version == kube_expected_version
+        fail_msg: >-
+          kubeadm not installed at expected version {{ kube_expected_version }}.
+          Found: {{ ansible_facts.packages['kubeadm'][0].version | default('not installed') }}.
+
+    - name: "Verify | Assert kubelet is installed at pinned version"
+      ansible.builtin.assert:
+        that:
+          - "'kubelet' in ansible_facts.packages"
+          - ansible_facts.packages['kubelet'][0].version == kube_expected_version
+        fail_msg: >-
+          kubelet not installed at expected version {{ kube_expected_version }}.
+          Found: {{ ansible_facts.packages['kubelet'][0].version | default('not installed') }}.
+
+    - name: "Verify | Assert kubectl is installed at pinned version"
+      ansible.builtin.assert:
+        that:
+          - "'kubectl' in ansible_facts.packages"
+          - ansible_facts.packages['kubectl'][0].version == kube_expected_version
+        fail_msg: >-
+          kubectl not installed at expected version {{ kube_expected_version }}.
+          Found: {{ ansible_facts.packages['kubectl'][0].version | default('not installed') }}.
+
+    - name: "Verify | Check dpkg hold selections"
+      ansible.builtin.command:
+        cmd: dpkg --get-selections {{ item }}
+      register: kube_verify_holds
+      changed_when: false
+      loop:
+        - kubeadm
+        - kubelet
+        - kubectl
+
+    - name: "Verify | Assert all three packages are held"
+      ansible.builtin.assert:
+        that:
+          - "'hold' in item.stdout"
+        fail_msg: >-
+          Package {{ item.item }} is not held.
+          dpkg --get-selections returned: {{ item.stdout }}.
+      loop: "{{ kube_verify_holds.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "Verify | Gather kubelet service facts"
+      ansible.builtin.service_facts:
+
+    - name: "Verify | Assert kubelet unit is enabled"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['kubelet.service'] is defined
+          - ansible_facts.services['kubelet.service'].status == 'enabled'
+        fail_msg: >-
+          kubelet.service is not enabled.
+          State: {{ ansible_facts.services['kubelet.service'].status | default('not found') }}.
