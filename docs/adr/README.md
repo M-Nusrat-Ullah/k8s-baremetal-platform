@@ -63,3 +63,10 @@ ADR-0005 amending ADR-0004 is the worked example.
 | 0011 | AppArmor baseline for `os_prep`                         | L1.1  | Accepted |
 | 0012 | CIS filesystem module blacklist                         | L1.1.6| Accepted |
 | 0013 | Real-host smoke-test harness for `os_prep`              | L1.1.7| Accepted |
+| 0014 | containerd install method, install-method seam, and CNI plugin scope | L1.1.8 | Accepted |
+| 0015 | containerd config generation strategy and sandbox image pin           | L1.1.8 | Accepted |
+| 0016 | kubeadm driven by config file over flags                              | L1.2   | Accepted |
+| 0017 | skip kube-proxy at init                                               | L1.2   | Accepted |
+| 0018 | cgroupDriver omission — GA CRI auto-detect                            | L1.2   | Accepted |
+| 0019 | Cilium cluster-pool IPAM; podSubnet omitted from ClusterConfiguration | L1.2   | Accepted |
+| 0020 | kube-install and kube-bootstrap two-role split                        | L1.2   | Accepted |
