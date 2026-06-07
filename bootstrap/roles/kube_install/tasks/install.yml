@@ -1,8 +1,35 @@
 ---
 # bootstrap/roles/kube_install/tasks/install.yml
 #
-# Installs kubeadm, kubelet, kubectl at the pinned version and applies
-# dpkg hold to prevent unintended upgrades.
-# Also enables (but does not start) the kubelet systemd unit.
+# Installs kubeadm, kubelet, and kubectl at the pinned version, applies a
+# dpkg hold to all three, and enables (but does not start) the kubelet unit.
 #
-# TODO (slice C): implement install + hold + enable.
+# Hold rationale: all three packages must be upgraded together to avoid
+# version skew. The hold prevents unattended-upgrades or a stray `apt upgrade`
+# from bumping one independently. Holds are lifted explicitly during the
+# 1.34→1.35 upgrade procedure.
+#
+# Kubelet state: the unit is enabled so it starts on reboot, but it will
+# crash-loop (Activating) until kubeadm init writes /var/lib/kubelet/config.yaml.
+# That is expected — do not attempt to pre-write kubelet config here.
+
+- name: "Kube_install | Install kubeadm, kubelet, kubectl at pinned version"
+  ansible.builtin.apt:
+    name: "{{ item }}={{ kubernetes.version }}"
+    state: present
+    update_cache: false # apt-repo.yml already ran update_cache via apt_repository
+    allow_downgrade: true # safe: pin is exact; downgrade only if repo regresses
+  loop: "{{ kube_install_packages }}"
+
+- name: "Kube_install | Hold kubeadm, kubelet, kubectl at pinned version"
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ kube_install_packages }}"
+
+- name: "Kube_install | Enable kubelet systemd unit"
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: "{{ kube_install_kubelet_service_enabled }}"
+    state: "{{ kube_install_kubelet_service_state }}"
+    daemon_reload: true
