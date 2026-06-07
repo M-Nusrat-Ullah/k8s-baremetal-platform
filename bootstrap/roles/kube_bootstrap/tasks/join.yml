@@ -2,12 +2,37 @@
 # bootstrap/roles/kube_bootstrap/tasks/join.yml
 #
 # Joins worker nodes to the cluster.
-# Pattern: generate join command on the CP host via
-#   kubeadm token create --print-join-command --ttl {{ kube_token_ttl }}
-# then execute it on each worker via hostvars delegation.
 #
-# Written here; exercised first in edge-site shape (not lab-single-node).
-# For ha-bare-metal CP join (--control-plane --certificate-key) is a
-# separate extension — deferred.
+# Pattern:
+#   1. Generate a join command on the CP host (kubeadm token create).
+#   2. Store it as a fact on the CP host.
+#   3. Execute it on each worker via the stored fact from hostvars.
 #
-# TODO (slice H): implement token generation + join task.
+# Written here; exercised first at edge-site shape (not lab-single-node,
+# which has no workers). The CP host is groups['control_plane'][0].
+#
+# Idempotency: guarded by checking for /etc/kubernetes/kubelet.conf.
+# If it exists, this node has already joined and the join command is skipped.
+
+- name: "Kube_bootstrap | Generate worker join command (run on CP)"
+  ansible.builtin.command:
+    cmd: >-
+      kubeadm token create
+      --print-join-command
+      --ttl {{ kube_bootstrap_token_ttl }}
+  register: kube_bootstrap_join_command_raw
+  changed_when: true
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+
+- name: "Kube_bootstrap | Check if node has already joined"
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kube_bootstrap_kubelet_conf_stat
+
+- name: "Kube_bootstrap | Join worker node to cluster"
+  ansible.builtin.command:
+    cmd: "{{ kube_bootstrap_join_command_raw.stdout }}"
+  register: kube_bootstrap_join_result
+  changed_when: kube_bootstrap_join_result.rc == 0
+  when: not kube_bootstrap_kubelet_conf_stat.stat.exists
