@@ -1,0 +1,192 @@
+---
+# Molecule verification for the containerd role (L1.1.8).
+#
+# Asserts the PERSIST half only: package at pinned version, runc binary
+# present (bundled in containerd.io), config.toml rendered with the correct
+# invariants, and the base CNI plugins extracted. Service enable/start and
+# the restart handler are guarded out of containers (containerd_config_apply_live
+# = false); their state is verified on real hosts during the L1.1 smoke test.
+# Idempotence (changed=0 on a second converge) is proven by `molecule
+# idempotence`, not asserted here.
+#
+# Version pins (containerd.*, cni_plugins.*) are loaded explicitly via
+# vars_files (same four ../ pattern as converge.yml and collections_path).
+- name: Verify
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - ../../defaults/main.yml
+    - ../../../../group_vars/all/versions.yml
+  tasks:
+    # --- package (L1.1.8 install) -------------------------------------------
+    - name: Verify | gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify | containerd.io is installed
+      ansible.builtin.assert:
+        that:
+          - "'containerd.io' in ansible_facts.packages"
+        fail_msg: "containerd.io package is not installed."
+        success_msg: "containerd.io package is installed."
+
+    - name: Verify | containerd.io is at the pinned version
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.packages['containerd.io'][0].version == containerd.version
+        fail_msg: >-
+          containerd.io version is
+          {{ ansible_facts.packages['containerd.io'][0].version }},
+          expected {{ containerd.version }}.
+        success_msg: "containerd.io is at pinned version {{ containerd.version }}."
+
+    # runc is bundled inside the containerd.io .deb (not a separate dpkg
+    # package), so it does not appear in package_facts. Assert the binary.
+    - name: Verify | stat the runc binary
+      ansible.builtin.stat:
+        path: /usr/bin/runc
+      register: containerd_runc_stat
+
+    - name: Verify | runc binary is present and executable
+      ansible.builtin.assert:
+        that:
+          - containerd_runc_stat.stat.exists
+          - containerd_runc_stat.stat.executable
+        fail_msg: "/usr/bin/runc is absent or not executable (runc should be bundled in containerd.io)."
+        success_msg: "/usr/bin/runc is present and executable."
+
+    # --- apt repo artifacts (L1.1.8 install) --------------------------------
+    - name: Verify | stat the Docker apt keyring
+      ansible.builtin.stat:
+        path: "{{ containerd_apt_keyring_file }}"
+      register: containerd_keyring_stat
+
+    - name: Verify | Docker apt keyring is present
+      ansible.builtin.assert:
+        that:
+          - containerd_keyring_stat.stat.exists
+        fail_msg: "{{ containerd_apt_keyring_file }} is absent."
+        success_msg: "{{ containerd_apt_keyring_file }} is present."
+
+    - name: Verify | stat the Docker deb822 source file
+      ansible.builtin.stat:
+        path: "{{ containerd_apt_source_file }}"
+      register: containerd_source_stat
+
+    - name: Verify | Docker deb822 source file is present
+      ansible.builtin.assert:
+        that:
+          - containerd_source_stat.stat.exists
+        fail_msg: "{{ containerd_apt_source_file }} is absent."
+        success_msg: "{{ containerd_apt_source_file }} is present."
+
+    # --- config.toml (L1.1.8 config) ----------------------------------------
+    - name: Verify | stat config.toml
+      ansible.builtin.stat:
+        path: "{{ containerd_config_file }}"
+      register: containerd_config_stat
+
+    - name: Verify | config.toml exists and is mode 0644
+      ansible.builtin.assert:
+        that:
+          - containerd_config_stat.stat.exists
+          - containerd_config_stat.stat.mode == "0644"
+        fail_msg: "{{ containerd_config_file }} missing or not mode 0644."
+        success_msg: "{{ containerd_config_file }} present, mode 0644."
+
+    - name: Verify | read config.toml
+      ansible.builtin.slurp:
+        src: "{{ containerd_config_file }}"
+      register: containerd_config_raw
+
+    - name: Verify | SystemdCgroup is true exactly once
+      ansible.builtin.assert:
+        that:
+          # Trim each line, select those matching the key; length == 1 also
+          # catches a duplicated line. The regex_replace in config.yml preserves
+          # indentation but the value is authoritative regardless of indent.
+          - >-
+            (containerd_config_raw.content | b64decode).splitlines()
+            | map('trim')
+            | select('match', '^SystemdCgroup = true$')
+            | list | length == 1
+        fail_msg: "SystemdCgroup = true not found exactly once in {{ containerd_config_file }}."
+        success_msg: "SystemdCgroup = true present exactly once."
+
+    - name: Verify | sandbox image is pinned exactly once
+      ansible.builtin.assert:
+        that:
+          # Single-quoted TOML value; regex_escape handles dots, slashes, colon.
+          - >-
+            (containerd_config_raw.content | b64decode).splitlines()
+            | map('trim')
+            | select('match', "^sandbox = '" ~ (containerd.sandbox_image | regex_escape) ~ "'$")
+            | list | length == 1
+        fail_msg: >-
+          sandbox = '{{ containerd.sandbox_image }}' not found exactly once in
+          {{ containerd_config_file }}.
+        success_msg: "sandbox = '{{ containerd.sandbox_image }}' present exactly once."
+
+    - name: Verify | CRI plugin is not disabled
+      ansible.builtin.assert:
+        that:
+          # The Docker .deb ships disabled_plugins = ["cri"]; the role overwrites
+          # the file with the generated default (disabled_plugins = []). Assert no
+          # non-comment line disables cri. length == 0 is the invariant.
+          - >-
+            (containerd_config_raw.content | b64decode).splitlines()
+            | map('trim')
+            | reject('match', '^#')
+            | select('match', '^disabled_plugins\s*=.*cri')
+            | list | length == 0
+        fail_msg: >-
+          A disabled_plugins line containing 'cri' is present in
+          {{ containerd_config_file }}; the Docker .deb's CRI-disabled config
+          was not overwritten (ADR-0015).
+        success_msg: "CRI plugin is not disabled in {{ containerd_config_file }}."
+
+    # --- base CNI plugins (L1.1.8 cni) -------------------------------------
+    - name: Verify | stat each required CNI plugin binary
+      ansible.builtin.stat:
+        path: "{{ containerd_cni_bin_dir }}/{{ item }}"
+      register: containerd_cni_stat
+      loop:
+        - loopback    # must-have: CRI cannot bring up a pod sandbox without it
+        - bridge      # default bridge network
+        - host-local  # IPAM, paired with bridge
+        - portmap     # hostPort support
+        - macvlan     # telco: Multus macvlan delegation
+        - ipvlan      # telco: Multus ipvlan delegation
+        - host-device # telco: Multus SR-IOV delegation
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Verify | every required CNI plugin binary is present and executable
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.executable
+        fail_msg: >-
+          {{ containerd_cni_bin_dir }}/{{ item.item }} is absent or not
+          executable (cni_plugins v{{ cni_plugins.version }} tarball may not
+          have extracted fully).
+        success_msg: "{{ containerd_cni_bin_dir }}/{{ item.item }} is present and executable."
+      loop: "{{ containerd_cni_stat.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # --- live service (guarded) ---------------------------------------------
+    # Service enable/start is guarded in config.yml (containerd_config_apply_live).
+    # Mirror the os_prep chrony pattern: gather facts and assert only on real hosts.
+    - name: Verify | gather service facts
+      ansible.builtin.service_facts:
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
+
+    - name: Verify | containerd.service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['containerd.service'].state == 'running'
+          - ansible_facts.services['containerd.service'].status == 'enabled'
+        fail_msg: "containerd.service is not running and enabled."
+        success_msg: "containerd.service is running and enabled."
+      when: ansible_facts['virtualization_type'] not in ['docker', 'podman', 'container', 'containerd']
