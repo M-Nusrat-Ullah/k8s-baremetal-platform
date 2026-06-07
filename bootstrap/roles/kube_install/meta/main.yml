@@ -3,6 +3,7 @@
 
 galaxy_info:
   role_name: kube_install
+  namespace: k8s_baremetal_platform
   author: Nusrat Ullah
   description: >
     Installs kubeadm, kubelet, and kubectl from pkgs.k8s.io at a pinned

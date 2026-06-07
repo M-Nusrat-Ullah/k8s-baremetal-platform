@@ -3,6 +3,7 @@
 
 galaxy_info:
   role_name: kube_bootstrap
+  namespace: k8s_baremetal_platform
   author: Nusrat Ullah
   description: >
     Forms the Kubernetes cluster: kubeadm init on the control plane,
