@@ -52,3 +52,5 @@ local.yml
 local.yaml
 *.local
 bootstrap/collections/
+# CEO-supplied reference docs — confidential, never pushed
+docs/reference/

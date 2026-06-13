@@ -44,6 +44,16 @@ repos:
         args: [--strict, -c=.yamllint]
         types: [yaml]
 
+  # ---- Confidentiality guard ----------------------------------------------
+  - repo: local
+    hooks:
+      - id: block-docs-reference
+        name: "GUARD: never stage docs/reference/ (confidential)"
+        language: system
+        entry: bash -c 'git diff --cached --name-only | grep -q "^docs/reference/" && echo "BLOCKED - docs/reference/ is confidential" && exit 1 || true'
+        pass_filenames: false
+        always_run: true
+
   # ---- Ansible style + correctness ----------------------------------------
   - repo: https://github.com/ansible/ansible-lint
     rev: v26.4.0
