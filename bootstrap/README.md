@@ -3,7 +3,7 @@
 The Ansible bootstrap layer for the `k8s-baremetal-platform` project. This
 directory contains the imperative provisioning logic that takes
 freshly-provisioned Linux hosts to a running Kubernetes cluster: OS prep,
-container runtime, kubeadm-driven control plane, CNI, Multus, and the Flux
+container runtime, kubeadm-driven control plane, CNI (Cilium), and the Flux
 bootstrap that hands ongoing operation to GitOps.
 
 For project-level context (audiences, design pillars, deploy shapes), see
@@ -12,14 +12,9 @@ the [repo-root README](../README.md). For design decisions, see
 
 ## Current state
 
-Layer 1.0 (Ansible tooling scaffold) is complete; Layer 1.1 is in progress.
-The `os_prep` role is under active, slice-by-slice development
-(`roles/os_prep/`): swap, kernel modules, sysctls, chrony, AppArmor, the CIS
-filesystem-module blacklist, and the real-host smoke-test harness (L1.1.7) have
-landed; the container-runtime role follows. See
-[`roles/os_prep/README.md`](roles/os_prep/README.md) for per-slice detail,
-[`tests/smoke/README.md`](tests/smoke/README.md) for the smoke-test runbook, and
-[`docs/adr/`](../docs/adr/) for the decision behind each.
+Layers 1.0, 1.1, and 1.2 are complete. The L2 Cilium CNI design is accepted
+and implementation begins next. See [`docs/adr/`](../docs/adr/) for the
+decision behind each slice.
 
 What lives here today:
 
@@ -29,24 +24,28 @@ What lives here today:
   exports the pinned `ANSIBLE_COLLECTIONS_PATH` on entry — see Quick start.
 - Pinned Python tooling (`requirements.txt`) and Galaxy collections
   (`requirements.yml`).
-- The `os_prep` role with its own Molecule scenario (per-role, not global —
-  see Conventions).
-- Component version registry at `group_vars/all/versions.yml` — values are
-  `null` placeholders pending dedicated pin commits.
-- Per-shape inventory skeletons under `inventory/<shape>/`.
-- Top-level `site.yml`: a trust play that pins SSH host keys on first contact
-  (`StrictHostKeyChecking=accept-new`) and verifies reachability via `ping`,
-  then a node-baseline play that applies the `os_prep` role to every host.
+- `roles/os_prep/` — OS prep role (swap, modules, sysctls, chrony, AppArmor,
+  CIS module blacklist, real-host smoke-test harness). Molecule green.
+- `roles/containerd/` — container runtime role; containerd 2.1.5 + CNI
+  plugins v1.9.1. Molecule green.
+- `roles/kube_install/` — kubeadm/kubelet/kubectl install role (K8s 1.34.8).
+  Molecule green (12 assertions).
+- `roles/kube_bootstrap/` — kubeadm init, kubeconfig, control-plane untaint,
+  worker join. Composes with `kube_install`.
+- Component version registry at `group_vars/all/versions.yml`; containerd,
+  CNI plugins, and Kubernetes pinned. Cilium/Helm/Gateway API pending (L2).
+- Per-shape inventory under `inventory/<shape>/`; `lab-single-node` carries
+  the real lab host IP and SSH user.
+- Top-level `site.yml`: SSH trust play → `os_prep` → `containerd` →
+  `kube_install` → `kube_bootstrap`, one play per role.
 - Lint configs (`.yamllint`, `.ansible-lint` with `profile: production`) and
   pre-commit hooks — these live at the repo root and apply repo-wide.
 
 What is not here yet:
 
-- The container-runtime and kubeadm roles (L1.1+/L1.2).
-- Fully populated inventory. `lab-single-node` carries the lab host (placeholder
-  connection values — real ones kept local); `edge-site` and `ha-bare-metal`
-  remain group-structure skeletons with empty `hosts: {}` until real targets
-  exist.
+- `roles/cilium_install/` and the Gateway API CRD assets (L2 — next).
+- `edge-site` and `ha-bare-metal` inventories remain group-structure
+  skeletons with empty `hosts: {}` until real targets exist.
 
 ## Quick start
 
@@ -176,15 +175,15 @@ is auto-discovered. Lint and hook commands run from repo root.
 
 ## Roadmap
 
-| Phase | Scope                                           |
-| ----- | ----------------------------------------------- |
-| L1.0  | Ansible tooling scaffold (complete)             |
-| L1.1  | OS prep + container runtime roles (in progress) |
-| L1.2  | kubeadm + kubelet + kubectl roles               |
-| L2.x  | CNI (Cilium, kube-proxy replacement) and Multus |
-| L3    | Policy (Kyverno) and admission baseline         |
-| L4a   | GitOps bootstrap (Flux), secrets at rest (SOPS) |
-| Telco | Opt-in telco overlay (additive — see below)     |
+| Phase | Scope                                                              | State       |
+| ----- | ------------------------------------------------------------------ | ----------- |
+| L1.0  | Ansible tooling scaffold                                           | complete    |
+| L1.1  | OS prep + container runtime roles                                  | complete    |
+| L1.2  | kubeadm + kubelet + kubectl roles                                  | complete    |
+| L2    | CNI — Cilium 1.19.x, kube-proxy replacement, Gateway API, BGP (design accepted; ADR-0022..0028) | next |
+| L3    | Policy (Kyverno) and admission baseline                            | pending     |
+| L4a   | GitOps bootstrap (Flux), secrets at rest (SOPS)                   | pending     |
+| Telco | Opt-in telco overlay (hugepages, SR-IOV/DPDK — additive; see below) | pending   |
 
 The **telco overlay** is opt-in and additive to the general-purpose path
 (per the three-audience goal — general platform, telco/5G, and application
@@ -192,10 +191,10 @@ engineers): a hugepages + CPU Manager / Topology Manager kubelet profile, the
 SR-IOV stack (`sriov` device-plugin + `sriov-cni` + the `vfio-pci` module,
 the last added to the os_prep load list and kept disjoint from the CIS
 blacklist per ADR-0007), and a dedicated `node-role: dataplane` node pool.
-Only user-plane CNFs (e.g. a UPF) need it; the general-purpose path and the
-standard control-plane workloads — including the HAProxy/ACS proxy — do not.
+Only user-plane CNFs (e.g. a UPF) need it; the general-purpose path does not.
+**Multus** is removed from the general-purpose stack (the L2 design adopts
+Cilium Egress Gateway for VLAN-pinned pod egress) and is deferred to the
+telco overlay, where it is only needed if a line-rate DPDK user-plane
+workload appears (see L2 design doc §12, §15).
 
-Decisions are tracked in [`docs/adr/`](../docs/adr/). Future ADRs will
-cover the Ansible tooling baseline and the versions-registry shape
-decision; until they land, the rationale lives in code comments inside
-`ansible.cfg` and `versions.yml`.
+Decisions are tracked in [`docs/adr/`](../docs/adr/).
