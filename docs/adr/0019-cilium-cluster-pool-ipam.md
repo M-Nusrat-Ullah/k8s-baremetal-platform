@@ -6,6 +6,7 @@
 - **Layer:** L1.2
 - **Supersedes:** none
 - **Superseded by:** none
+- **Amended by:** ADR-0026 (settles the pod CIDR selection deferred here)
 
 ## Context
 
