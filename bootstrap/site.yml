@@ -20,6 +20,13 @@
 #     Play 1 owns trust establishment and must run before Play 2, which
 #     connects under the global strict policy (no accept-new of its own).
 #
+# apt lock wait:
+#   Plays that install packages (os_prep, containerd, kube_install) set
+#   module_defaults ansible.builtin.apt lock_timeout to 600 s. On a freshly
+#   booted or freshly rolled-back node, unattended-upgrades can hold the dpkg
+#   lock for several minutes on a slow disk, longer than the module default of
+#   60 s. The setting only extends how long apt waits; it never skips a lock.
+#
 # Run:
 #   ansible-playbook -i inventory/lab-single-node/ site.yml --check   # dry-run
 #   ansible-playbook -i inventory/lab-single-node/ site.yml           # apply
@@ -42,6 +49,9 @@
   # from gathered facts (swaptotal_mb, virtualization_type), so facts are
   # required here even though the trust play above runs factless.
   gather_facts: true
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 600
   roles:
     - role: os_prep
 
@@ -52,6 +62,9 @@
   hosts: all
   become: true
   gather_facts: true
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 600
   roles:
     - role: containerd
 
@@ -62,6 +75,9 @@
   hosts: all
   become: true
   gather_facts: true
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 600
   roles:
     - role: kube_install
 
