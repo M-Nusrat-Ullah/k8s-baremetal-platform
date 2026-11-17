@@ -54,3 +54,5 @@ local.yaml
 bootstrap/collections/
 # CEO-supplied reference docs — confidential, never pushed
 docs/reference/
+# Session handoff notes — local working files, not part of the repo
+docs/handoffs/
