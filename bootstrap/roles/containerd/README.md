@@ -60,7 +60,7 @@ behavioural knobs only.
    CNI delegation for 5G UPF and SR-IOV workloads without any additional
    configuration.
 4. **Config** — runs `containerd config default` against the installed binary
-   (generating a v3 schema with CRI enabled), applies two targeted transforms
+   (generating the binary's own schema, v4 on containerd 2.3, with CRI enabled), applies two targeted transforms
    (`SystemdCgroup = true`; pinned sandbox image), and writes the result via
    idempotent `copy`. Replaces the Docker package's CRI-disabled default
    unconditionally. See [ADR-0015](../../../docs/adr/0015-containerd-config-generation-strategy.md).
@@ -132,7 +132,7 @@ molecule destroy
 - `containerd.service` running and enabled (service state needs a real systemd
   manager; the enable/start task is guarded out of containers).
 - The restart handler firing on a config change.
-- `containerd config default` output matching the expected v3 schema on a
+- `containerd config default` output matching the expected schema on a
   kernel other than the one in the geerlingguy image.
 
 Assertions requiring a real host are guarded with:
