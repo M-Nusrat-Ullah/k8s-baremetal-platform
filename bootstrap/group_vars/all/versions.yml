@@ -80,9 +80,10 @@ kubernetes:
 # during initial cluster bootstrap before Flux takes over.
 # ---------------------------------------------------------------------------
 helm:
-  version: null # e.g. "3.16.4"
-  binary_url: null # get.helm.sh/helm-v<version>-linux-amd64.tar.gz (tarball, not bare binary)
-  checksum: null # SHA256 of the tarball
+  # Helm 4 line; needs kubernetes.core >= 6.5.0 for the helm module (requirements.yml).
+  version: "4.3.2"
+  binary_url: "https://get.helm.sh/helm-v4.3.2-linux-amd64.tar.gz" # tarball, not bare binary
+  checksum: "sha256:d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983" # tarball, from get.helm.sh/<tarball>.sha256sum
 
 # ---------------------------------------------------------------------------
 # Networking — CNI + meta-plugin + ingress
@@ -91,6 +92,14 @@ cilium:
   version: null # kube-proxy replacement, BGP control plane, LB-IPAM
   helm_chart_repo: null # https://helm.cilium.io/
   helm_chart_version: null # tracks `version` above
+
+# Gateway API CRDs (ADR-0031). Fetched at install time with get_url and verified
+# against the checksum; not vendored. Must match the version the pinned Cilium
+# release is built against (Cilium 1.20.4 -> v1.6.3).
+gateway_api:
+  version: "v1.6.3"
+  manifest_url: "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml"
+  checksum: "sha256:356c2b8e286a964dc20995435659ad1095386329974793af10bbfe3eff977fe5" # standard-install.yaml
 
 multus:
   image_digest: null # ghcr.io/k8snetworkplumbingwg/multus-cni@sha256:...
@@ -117,9 +126,11 @@ sops:
   checksum: null # SHA256 of the binary, verified post-download
 
 cosign:
-  version: null # binary install
-  binary_url: null # github.com/sigstore/cosign/releases/download/...
-  checksum: null # SHA256 of the binary
+  # Control-node tool, not installed on cluster nodes: verifies upstream image
+  # signatures when digests are pinned here (ADR-0030). See bootstrap/README.md.
+  version: "3.1.4"
+  binary_url: "https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-amd64"
+  checksum: "sha256:424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa" # from the release's cosign_checksums.txt
 
 # ---------------------------------------------------------------------------
 # GitOps
