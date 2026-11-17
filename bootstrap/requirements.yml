@@ -37,7 +37,7 @@ collections:
   # cluster from Ansible; pulling now means zero churn when the first
   # k8s-touching role lands.
   - name: kubernetes.core
-    version: "6.1.0"
+    version: "6.6.0"
 
   # Docker modules. Required transitively by molecule-plugins[docker] —
   # Molecule's Docker driver invokes community.docker.docker_container to
