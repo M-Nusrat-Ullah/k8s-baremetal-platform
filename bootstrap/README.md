@@ -26,9 +26,9 @@ What lives here today:
   (`requirements.yml`).
 - `roles/os_prep/` — OS prep role (swap, modules, sysctls, chrony, AppArmor,
   CIS module blacklist, real-host smoke-test harness). Molecule green.
-- `roles/containerd/` — container runtime role; containerd 2.1.5 + CNI
+- `roles/containerd/` — container runtime role; containerd 2.3.6 + CNI
   plugins v1.9.1. Molecule green.
-- `roles/kube_install/` — kubeadm/kubelet/kubectl install role (K8s 1.34.8).
+- `roles/kube_install/` — kubeadm/kubelet/kubectl install role (K8s 1.36.6).
   Molecule green (12 assertions).
 - `roles/kube_bootstrap/` — kubeadm init, kubeconfig, control-plane untaint,
   worker join. Composes with `kube_install`.
@@ -180,7 +180,7 @@ is auto-discovered. Lint and hook commands run from repo root.
 | L1.0  | Ansible tooling scaffold                                           | complete    |
 | L1.1  | OS prep + container runtime roles                                  | complete    |
 | L1.2  | kubeadm + kubelet + kubectl roles                                  | complete    |
-| L2    | CNI — Cilium 1.19.x, kube-proxy replacement, Gateway API, BGP (design accepted; ADR-0022..0028) | next |
+| L2    | CNI — Cilium 1.20.x, kube-proxy replacement, Gateway API, BGP (design accepted; ADR-0022..0031) | next |
 | L3    | Policy (Kyverno) and admission baseline                            | pending     |
 | L4a   | GitOps bootstrap (Flux), secrets at rest (SOPS)                   | pending     |
 | Telco | Opt-in telco overlay (hugepages, SR-IOV/DPDK — additive; see below) | pending   |

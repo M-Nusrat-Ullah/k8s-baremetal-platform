@@ -19,7 +19,7 @@ correct, not a failure**:
 
 ```
 NAME     STATUS     ROLES           AGE   VERSION
-<node>   NotReady   control-plane   Xs    v1.34.x
+<node>   NotReady   control-plane   Xs    v1.36.x
 ```
 
 - `NotReady` — no CNI installed yet. Cilium arrives in L2.

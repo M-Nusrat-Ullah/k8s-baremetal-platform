@@ -16,9 +16,9 @@ loaded, `SystemdCgroup = true` set in containerd config).
 
 | Variable | Default | Description |
 |---|---|---|
-| `kubernetes.version` | `null` | Exact apt package version (e.g. `1.34.8-1.1`). **Must be set** before this role runs. Source from `apt-cache madison kubeadm`. |
-| `kubernetes.apt_repo` | pkgs.k8s.io v1.34 | apt repository URL. Change to `v1.35` for the upgrade. |
-| `kubernetes.apt_signing_key` | pkgs.k8s.io v1.34 | Signing key URL. Change alongside `apt_repo`. |
+| `kubernetes.version` | `null` | Exact apt package version (e.g. `1.36.6-1.1`). **Must be set** before this role runs. Source from `apt-cache madison kubeadm`. |
+| `kubernetes.apt_repo` | pkgs.k8s.io v1.36 | apt repository URL. Per-minor: change it when the minor changes. |
+| `kubernetes.apt_signing_key` | pkgs.k8s.io v1.36 | Signing key URL. Change alongside `apt_repo`. |
 | `kube_prepull_images` | `true` | Run `kubeadm config images pull` before init. Set `false` in Molecule. |
 
 ## Testing
