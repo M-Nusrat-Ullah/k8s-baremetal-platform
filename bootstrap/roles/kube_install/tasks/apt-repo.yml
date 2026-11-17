@@ -2,8 +2,8 @@
 # bootstrap/roles/kube_install/tasks/apt-repo.yml
 #
 # Adds the pkgs.k8s.io per-minor apt repository and its signing key.
-# The repo is scoped to a single Kubernetes minor (v1.34). Upgrading to
-# v1.35 requires changing both kubernetes.apt_repo and
+# The repo is scoped to a single Kubernetes minor (v1.36). Moving to
+# v1.37 requires changing both kubernetes.apt_repo and
 # kubernetes.apt_signing_key in versions.yml — the repo URL is per-minor,
 # not per-patch.
 

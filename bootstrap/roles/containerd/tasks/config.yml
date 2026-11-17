@@ -10,7 +10,7 @@
 #   * Persist (everywhere) -> generate the default config and render
 #     containerd_config_file with SystemdCgroup = true and the pinned sandbox
 #     image. Generating from `containerd config default` (rather than hand-
-#     templating a large, version-coupled v3 schema) yields the correct schema
+#     templating a large, version-coupled schema) yields the correct schema
 #     for the pinned binary with the CRI plugin ENABLED -- which also overwrites
 #     the CRI-disabled config.toml the Docker .deb ships
 #     (disabled_plugins = ["cri"]). Asserted in verify.yml. See docs/adr/0015.
@@ -35,7 +35,7 @@
     cmd: containerd config default
   register: containerd_config_default
   changed_when: false
-  # Read-only generator: prints the pinned binary's default v3 config (CRI
+  # Read-only generator: prints the pinned binary's default config (CRI
   # enabled) without touching the system, so changed_when is false.
 
 - name: Render config.toml with the systemd cgroup driver and pinned sandbox image

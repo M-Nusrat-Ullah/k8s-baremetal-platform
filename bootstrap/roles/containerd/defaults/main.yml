@@ -29,14 +29,14 @@ containerd_install_method: apt
 # and os_prep_chrony_conf_file).
 #
 # The role does NOT hand-maintain this file. It runs `containerd config
-# default` (which emits the correct v3 schema for the *pinned* 2.x binary,
+# default` (which emits the correct schema for the *pinned* 2.x binary, v4 on 2.3,
 # with the CRI plugin enabled), then sets exactly two values and renders the
 # result: SystemdCgroup = true, and the pinned sandbox image. Generating from
 # the binary's own default both overwrites the CRI-disabled config the Docker
 # package ships and removes the transcription risk of templating a large,
 # version-coupled schema by hand.
 #
-# SystemdCgroup is a non-negotiable invariant on this systemd host: on 1.34 /
+# SystemdCgroup is a non-negotiable invariant on this systemd host: on 1.36 /
 # containerd 2.x the kubelet derives its cgroup driver from the CRI runtime,
 # so an incorrect value here is the root of the classic "kubeadm init hangs /
 # cgroupsPath" failure. It is therefore set unconditionally in the task, not
