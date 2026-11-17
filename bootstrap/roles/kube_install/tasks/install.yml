@@ -7,7 +7,7 @@
 # Hold rationale: all three packages must be upgraded together to avoid
 # version skew. The hold prevents unattended-upgrades or a stray `apt upgrade`
 # from bumping one independently. Holds are lifted explicitly during the
-# 1.34→1.35 upgrade procedure.
+# minor upgrade procedure (ADR-0029).
 #
 # Kubelet state: the unit is enabled so it starts on reboot, but it will
 # crash-loop (Activating) until kubeadm init writes /var/lib/kubelet/config.yaml.
