@@ -3,18 +3,18 @@
 | Field            | Value                                                                                 |
 |------------------|---------------------------------------------------------------------------------------|
 | **Layer**        | L2 (CNI install — node `NotReady` → `Ready`)                                           |
-| **Status**       | Accepted (2026-06-07)                                                                  |
+| **Status**       | Accepted (2026-06-07); amended 2026-11-17 for the version re-baseline (ADR-0029..0031) |
 | **Date**         | 2026-06-07                                                                             |
 | **Deciders**     | Nusrat Ullah                                                                           |
 | **Depends on**   | L1.2 (kubeadm), ADR-0016..0019                                                         |
-| **Produces**     | ADR-0022..0028 (see §13)                                                               |
+| **Produces**     | ADR-0022..0028, ADR-0030, ADR-0031 (see §13)                                           |
 | **Reconciled**   | Parent CNI design doc read (2026-06-08): adopts native routing, rejects tunnel — inference confirmed. Refinements folded in: pod CIDR `100.64.0.0/14`, Egress Gateway + L2-announcements enabled, `autoDirectNodeRoutes` on all shapes, PodCIDR not BGP-advertised, Multus retirement flagged (§5, §9, §12). |
 
 ---
 
 ## 1. Purpose & scope
 
-L2 installs **Cilium 1.19.4** as the cluster CNI. kube-proxy was skipped at init (ADR-0017), so Cilium runs in kube-proxy-replacement mode and the node transitions `NotReady` → `Ready` once the agent is healthy.
+L2 installs **Cilium 1.20.4** as the cluster CNI. kube-proxy was skipped at init (ADR-0017), so Cilium runs in kube-proxy-replacement mode and the node transitions `NotReady` → `Ready` once the agent is healthy.
 
 **In scope**
 - Cilium install via Helm, pinned, with committed per-shape values.
@@ -39,7 +39,7 @@ Verified on `lab-single-node` (`192.0.2.10`):
 
 | Check | Command | Expected |
 |-------|---------|----------|
-| Node Ready | `kubectl get nodes` | `lab-node-01 Ready control-plane <age> v1.34.8` |
+| Node Ready | `kubectl get nodes` | `lab-node-01 Ready control-plane <age> v1.36.6` |
 | Agent healthy | `kubectl -n kube-system get pods -l k8s-app=cilium` | `Running 1/1` |
 | Operator healthy | `kubectl -n kube-system get pods -l io.cilium/app=operator` | `Running` (replicas=1 this shape) |
 | Hubble relay | `kubectl -n kube-system get pods -l k8s-app=hubble-relay` | `Running` |
@@ -54,7 +54,7 @@ Verified on `lab-single-node` (`192.0.2.10`):
 
 ## 3. Context & binding constraints
 
-Confirmed inputs (this session): K8s `1.34.8`; containerd `2.1.5`; node subnet `192.0.2.0/24`; service CIDR `10.96.0.0/12`; kube-proxy skipped (ADR-0017); `podSubnet` omitted from `ClusterConfiguration` (ADR-0019); cgroup driver from CRI (ADR-0018); pause `registry.k8s.io/pause:3.10.1`.
+Confirmed inputs (re-baselined 2026-11-17, ADR-0029): K8s `1.36.6`; containerd `2.3.6`; node subnet `192.0.2.0/24`; service CIDR `10.96.0.0/12`; kube-proxy skipped (ADR-0017); `podSubnet` omitted from `ClusterConfiguration` (ADR-0019); cgroup driver from CRI (ADR-0018); pause `registry.k8s.io/pause:3.10.2`.
 
 Constraints from the reference workload's internal design docs (a telco reverse-proxy and its backend gateway; kept local, not committed) that shaped the datapath decision:
 - LoadBalancer service VIPs are **BGP-advertised** to the network; rollback withdraws the route via BGP.
@@ -63,7 +63,7 @@ Constraints from the reference workload's internal design docs (a telco reverse-
 - Application pods **originate IPsec/ESP directly to an external security gateway**, bypassing the north-south proxy.
 - East-west service load-balancing across ≥3 backend pods runs through Cilium kube-proxy-replacement; it can be stateless because a distributed session registry removes the need for session affinity.
 
-**Reconciliation — resolved.** The parent CNI design doc has now been read. It **adopts native routing and explicitly rejects tunnel/overlay** (double-encapsulation, hidden pod identity, MTU cost on large transfers) — the same reasoning given here, so the inference is confirmed, not overturned. The parent doc also pins specifics folded into this revision: a single cluster-wide pod CIDR (no Multi-Pool), per-segment LB pools advertised by BGP, **PodCIDR kept cluster-internal (not BGP-advertised)**, Cilium **Egress Gateway** for VLAN-pinned pod egress (replacing Multus), and L2 announcements as a per-segment fallback. Its version baseline (Cilium 1.16 LTS, K8s 1.28–1.30) is older than ours; we keep the latest (ADR-0028).
+**Reconciliation — resolved.** The parent CNI design doc has now been read. It **adopts native routing and explicitly rejects tunnel/overlay** (double-encapsulation, hidden pod identity, MTU cost on large transfers) — the same reasoning given here, so the inference is confirmed, not overturned. The parent doc also pins specifics folded into this revision: a single cluster-wide pod CIDR (no Multi-Pool), per-segment LB pools advertised by BGP, **PodCIDR kept cluster-internal (not BGP-advertised)**, Cilium **Egress Gateway** for VLAN-pinned pod egress (replacing Multus), and L2 announcements as a per-segment fallback. Its version baseline (Cilium 1.16 LTS, K8s 1.28–1.30) is older than ours; we track the current Cilium stable line (ADR-0030).
 
 ---
 
@@ -76,9 +76,9 @@ Constraints from the reference workload's internal design docs (a telco reverse-
 | **Bootstrap** (`bootstrap/roles/cilium_install`) | Gateway API CRDs; Cilium Helm release + all feature-flag values | The CNI is a day-0 dependency of the cluster being usable *and* of Flux running at all (Flux pods need a CNI to get IPs). It cannot live in Flux. |
 | **GitOps** (`gitops/`, L4a) | BGP CRs, LB-IPAM pools, Gateways/Routes, NetworkPolicies | These churn and benefit from reconciliation/drift-detection; they are not bootstrap-critical. |
 
-**Mechanism:** `kubernetes.core.helm` (collection already pinned at `6.1.0`), committed per-shape values files (no `--set` soup), chart pinned to `1.19.4`, image digests pinned in `versions.yml`. **Helm runs from the first control-plane node** (kubeconfig already at `~/.kube/config`; `run_once`). `cilium-cli` is rejected — it obscures what is deployed and is awkward to template per shape.
+**Mechanism:** `kubernetes.core.helm` (collection pinned at `6.6.0`; Helm 4 needs 6.5.0 or later), committed per-shape values files (no `--set` soup), chart pinned to `1.20.4`, image digests pinned in `versions.yml`. **Helm runs from the first control-plane node** (kubeconfig already at `~/.kube/config`; `run_once`). `cilium-cli` is rejected — it obscures what is deployed and is awkward to template per shape.
 
-**Trade given up:** Cilium's own feature-flag config is not GitOps-reconciled — changes are an Ansible run, not a git commit. Accepted: this is the standard bare-metal pattern, and for the planned 1.34→1.35 upgrade artifact, a deliberate documented bootstrap operation is preferable to a silent HelmRelease bump. → **ADR-0023.**
+**Trade given up:** Cilium's own feature-flag config is not GitOps-reconciled — changes are an Ansible run, not a git commit. Accepted: this is the standard bare-metal pattern, and for Kubernetes minor upgrades (ADR-0029), a deliberate documented bootstrap operation is preferable to a silent HelmRelease bump. → **ADR-0023.**
 
 ---
 
@@ -94,7 +94,9 @@ Constraints from the reference workload's internal design docs (a telco reverse-
 - **Cross-node pod routing** uses `autoDirectNodeRoutes: true` — Cilium installs a route to each node's pod CIDR via that node's IP. This works when nodes share an L2 node/trunk network, which the parent design assumes (all nodes on a bonded 802.1Q trunk). No overlay, and **the PodCIDR is *not* advertised by BGP** — it stays cluster-internal, a deliberate security property (pods are not reachable or scannable from the fabric).
 - **BGP advertises LoadBalancer IP pools only** (per-segment), never the PodCIDR. So on multi-node shapes the BGP control plane is *active for LB-IP advertisement*, not for pod routing. If a future deployment ever places nodes on genuinely L3-separated segments with no shared node L2, pod routing would then need BGP-distributed pod routes — recorded as a fallback, not the default.
 
-**Masquerade.** `bpf.masquerade: true` (eBPF; requires kube-proxy-replacement). Traffic staying inside `ipv4NativeRoutingCIDR` routes direct; traffic leaving it SNATs to the node IP. `bpf.hostLegacyRouting: false` (BPF host routing — confirm it is already the 1.19 default at pin-time and pin explicitly regardless).
+**Masquerade.** `bpf.masquerade: true` (eBPF; requires kube-proxy-replacement). Traffic staying inside `ipv4NativeRoutingCIDR` routes direct; traffic leaving it SNATs to the node IP. `bpf.hostLegacyRouting: false` (BPF host routing — the 1.20.4 chart leaves the key unset and documents `false` as the default; pinned explicitly regardless).
+
+**Datapath mode.** `bpf.datapathMode: veth`, set explicitly (ADR-0030). Cilium 1.20 adds an `auto` mode that selects netkit on kernel 6.8 or later, which the lab node runs. The chart default is still `veth`, but the 1.20 notes say it may change, so the mode is pinned. netkit is a later per-shape decision.
 
 ---
 
@@ -115,7 +117,9 @@ Single-node note: with one node, only one `/24` is carved; cross-node routing is
 
 ## 7. Helm values (designed)
 
-> Version/digest fields are filled at the `chore(versions): pin cilium` commit (see §14). Do not invent digests — capture via a cosign-verified `helm pull` / image inspection at pin-time. Reconfirm the latest `1.19.x` patch and that every key/default below matches `helm show values cilium/cilium --version <pin>` before writing the role.
+> Version/digest fields are filled at the `chore(versions): pin cilium` commit (see §14). Do not invent digests — capture via a cosign-verified `helm pull` / image inspection at pin-time. Reconfirm the latest `1.20.x` patch and that every key/default below matches `helm show values cilium/cilium --version <pin>` before writing the role.
+>
+> **Render gate (ADR-0030).** Every key below changed the `helm template` output of chart `1.20.4` when its value was changed (run 2026-11-17). Two keys from the earlier revision did not and were removed: `egressGateway.installRoutes` and `externalIPs.enabled`. Rerun the gate whenever the chart version changes.
 
 ### 7.1 Common (all shapes)
 
@@ -136,6 +140,7 @@ autoDirectNodeRoutes: true            # cross-node routing via node L2-adjacency
 bpf:
   masquerade: true
   hostLegacyRouting: false
+  datapathMode: veth                  # explicit; 1.20 adds auto/netkit (ADR-0030)
 
 l7Proxy: true                         # required by Gateway API (default on; pinned explicit)
 
@@ -150,11 +155,8 @@ bgpControlPlane:
   enabled: true                       # advertises LB-IP pools only; zero CRs = dormant
 egressGateway:
   enabled: true                       # VLAN-pinned pod egress; CiliumEgressGatewayPolicy CRs deferred
-  installRoutes: true
 l2announcements:
   enabled: true                       # LB-IP fallback for BGP-less segments; CRs deferred
-externalIPs:
-  enabled: false
 
 hubble:
   relay:
@@ -210,10 +212,10 @@ loadBalancer:
 
 ## 8. Gateway API — prerequisite & ordering
 
-Gateway API CRDs **must be present before the Cilium operator starts**, or the operator errors and never creates the `cilium` GatewayClass (cilium/cilium#42179). → **ADR-0024.**
+Gateway API CRDs **must be present before the Cilium operator starts**, or the operator errors and never creates the `cilium` GatewayClass (cilium/cilium#42179). → **ADR-0031** (supersedes ADR-0024).
 
-- Pin **Gateway API v1.4.1**, standard channel (`standard-install.yaml`): `GatewayClass`, `Gateway`, `HTTPRoute`, `GRPCRoute`, `ReferenceGrant`. (TLSRoute is experimental-channel only; add later if a workload needs it. Reconfirm v1.4.1 is the version Cilium 1.19.x expects at pin-time.)
-- **Vendor the manifest into the repo** (e.g. `bootstrap/files/gateway-api/v1.4.1/standard-install.yaml`) and apply via `kubernetes.core.k8s` — do not apply a live release URL. Add a `gateway_api` entry to `versions.yml`.
+- Pin **Gateway API v1.6.3**, standard channel (`standard-install.yaml`). Cilium 1.20 requires v1.6.1 or later and 1.20.4 is built against v1.6.3. Required CRDs: `GatewayClass`, `Gateway`, `HTTPRoute`, `GRPCRoute`, `ReferenceGrant`, `BackendTLSPolicy`, `TLSRoute` (`TLSRoute` is `v1` and in the standard channel from v1.6.1). The bundle also carries the optional `ListenerSet`, `TCPRoute` and `UDPRoute` CRDs and a `safe-upgrades` ValidatingAdmissionPolicy; the whole bundle is applied.
+- **Fetch the pinned manifest at install time; do not vendor it** (ADR-0031). `ansible.builtin.get_url` downloads `gateway_api.manifest_url` to the first control-plane node with `checksum: gateway_api.checksum` (sha256, pinned in `versions.yml`), then `kubernetes.core.k8s` applies it with server-side apply. The bundle is about 1.2 MB, over the repo's 500 KB large-file hook, and the checksum gives the integrity a vendored copy would. Trade: the first bootstrap needs GitHub reachable from the node.
 - Role ordering: apply CRDs → wait for `Established` → then the Cilium Helm release.
 - L2 deliverable is the `cilium` GatewayClass (`ACCEPTED=True`). Actual `Gateway`/`HTTPRoute` objects are deferred (gitops/L4a). A `Gateway` needs a routable external IP — on flat shapes via LB-IPAM + L2 announcements, on routed shapes via BGP — that is the runtime half, deferred (§12).
 
@@ -223,9 +225,10 @@ Gateway API CRDs **must be present before the Cilium operator starts**, or the o
 
 `bgpControlPlane.enabled: true`, **zero CRs at L2**. → **ADR-0025.**
 
-- API is **`cilium.io/v2`** (`CiliumBGPClusterConfig`, `CiliumBGPPeerConfig`, `CiliumBGPAdvertisement`); `v2alpha1 CiliumBGPPeeringPolicy` (v1) is deprecated and not used. The parent doc's listings show `v2alpha1` because it targets Cilium 1.16; on 1.19 several of these CRDs have graduated to `v2` — **verify each CR's apiVersion against 1.19 when the runtime objects are written**, don't copy the doc's v2alpha1 verbatim.
+- API is **`cilium.io/v2`** (`CiliumBGPClusterConfig`, `CiliumBGPPeerConfig`, `CiliumBGPAdvertisement`); `v2alpha1 CiliumBGPPeeringPolicy` (v1) is deprecated and not used. The parent doc's listings show `v2alpha1` because it targets Cilium 1.16; on 1.20 several of these CRDs have graduated to `v2` — **verify each CR's apiVersion against 1.20 when the runtime objects are written**, don't copy the doc's v2alpha1 verbatim.
 - BGP advertises **LoadBalancer IP pools only** (per-segment, label-selected, typically one advertisement per segment with a distinguishing BGP community). **PodCIDR is never advertised** (§5). Runtime objects — per-segment `CiliumLoadBalancerIPPool` + `CiliumBGPClusterConfig`/`PeerConfig`/`Advertisement` — are GitOps/L4a or per-workload, not built here.
 - So on multi-node shapes the control plane is *active for LB-IP advertisement*; it is dormant only where there is nothing to advertise (e.g. `lab-single-node`). Peering needs an upstream BGP speaker (ToR), so it activates when that fabric exists.
+- Inspect BGP state with `cilium shell -- bgp/*`. Listing peers and routes with `cilium-dbg bgp` is deprecated in 1.20 (ADR-0030).
 
 ---
 
@@ -234,9 +237,9 @@ Gateway API CRDs **must be present before the Cilium operator starts**, or the o
 New role `bootstrap/roles/cilium_install` (same structure as existing roles: `defaults/`, `meta/`, `tasks/`, `templates/`, `molecule/`, `README.md`). New play in `site.yml` after `kube_bootstrap`.
 
 Task flow (run on first control-plane node, `run_once`):
-1. **Install Helm 3.x** (pinned tarball + SHA256 from `versions.yml:helm`) if absent. `kubernetes.core.helm` requires the binary present on the target.
-2. **Apply Gateway API CRDs** (pinned, vendored) via `kubernetes.core.k8s`; wait for `Established`.
-3. **`kubernetes.core.helm`** install/upgrade `cilium` `1.19.4` — values = common + shape file; namespace `kube-system`.
+1. **Install Helm 4.x** (pinned tarball + SHA256 from `versions.yml:helm`) if absent. `kubernetes.core.helm` requires the binary present on the target.
+2. **Apply Gateway API CRDs** (fetched with a pinned checksum) via `kubernetes.core.k8s` with server-side apply; wait for `Established`.
+3. **`kubernetes.core.helm`** install/upgrade `cilium` `1.20.4` — values = common + shape file; namespace `kube-system`.
 4. **Wait** for `cilium` DaemonSet + `cilium-operator` rollout (generous timeouts — HDD VM, large image pulls).
 5. **Assert** the §2 DoD gates.
 
@@ -286,11 +289,15 @@ Numbers continue from ADR-0021. Each ADR is written with its implementation slic
 |-----|----------|
 | **0022** | Cilium datapath: native routing on all shapes; `autoDirectNodeRoutes`/BGP activation as per-shape additive knobs. Tunnel retained as documented fallback. |
 | **0023** | Cilium delivery: Helm via `kubernetes.core.helm` from the first CP node; two-plane split (install in bootstrap, runtime CRs in gitops/L4a); `cilium-cli` rejected. |
-| **0024** | Gateway API CRDs pinned (v1.4.1, standard channel), vendored, applied before the Cilium operator boots. |
+| **0024** | Gateway API CRDs pinned (v1.4.1, standard channel), vendored, applied before the Cilium operator boots. **Superseded by ADR-0031.** |
 | **0025** | BGP control plane enabled but dormant at L2; `cilium.io/v2` API; runtime peering deferred. |
 | **0026** | Pod CIDR `100.64.0.0/14` (RFC 6598, `/24` per node), `ipv4NativeRoutingCIDR` coupled; disjoint from the RFC 1918 fabric; collision-checked vs lab service `10.96.0.0/12` and node `192.0.2.0/24`. |
-| **0027** | Egress Gateway + L2 announcements enabled at install (dormant); runtime CRs deferred. PodCIDR not BGP-advertised; BGP carries LB-IP pools only. |
-| **0028** | Adopt Cilium **1.19.x** over the parent design's 1.16 LTS — strict capability superset (BGP v2 GA CRDs, mature Egress Gateway), required for K8s 1.34; the doc's 1.16+ examples remain valid as a baseline. |
+| **0027** | Egress Gateway + L2 announcements enabled at install (dormant); runtime CRs deferred. PodCIDR not BGP-advertised; BGP carries LB-IP pools only. **Amended by ADR-0030** (no `installRoutes` key). |
+| **0028** | Adopt Cilium **1.19.x** over the parent design's 1.16 LTS — strict capability superset (BGP v2 GA CRDs, mature Egress Gateway), required for K8s 1.34; the doc's 1.16+ examples remain valid as a baseline. **Superseded by ADR-0030.** |
+| **0030** | Adopt Cilium **1.20.x**, the line whose tested matrix lists K8s 1.36. `bpf.datapathMode: veth` pinned; dead keys `egressGateway.installRoutes` and `externalIPs.enabled` removed; render gate on values keys. Supersedes 0028; amends 0027. |
+| **0031** | Gateway API CRDs pinned (v1.6.3, standard channel), fetched at install time with a pinned checksum (not vendored), server-side applied before the Cilium operator boots. Supersedes 0024. |
+
+ADR-0029 (Kubernetes 1.36 re-baseline, containerd 2.3 LTS, version lifecycle policy) is repo-wide and is not an L2 record; it sets the inputs in §3.
 
 ---
 
@@ -300,7 +307,7 @@ Built slice-by-slice after sign-off; each = code + its ADR, approved individuall
 
 | Slice | Content | Commit type |
 |-------|---------|-------------|
-| A | Pin versions: `cilium` (1.19.4 + chart + digest), `helm` (3.x + tarball + sha), new `gateway_api` (v1.4.1 + vendored manifest) in `versions.yml` | `chore(versions)` |
+| A | Pin `cilium` (1.20.4 + chart + cosign-verified image digests) in `versions.yml`. `helm` (4.3.2), `cosign` (3.1.4) and `gateway_api` (v1.6.3) were pinned on 2026-11-17 | `chore(versions)` |
 | B | `cilium_install` role scaffold + Helm-binary prereq task | `feat(cilium)` |
 | C | Gateway API CRD apply task (pinned manifest, wait-for-Established) | `feat(cilium)` |
 | D | Values templates (common + per-shape) + `kubernetes.core.helm` task | `feat(cilium)` |
