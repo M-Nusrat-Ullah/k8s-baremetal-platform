@@ -52,7 +52,7 @@ ADR-0005 amending ADR-0004 is the worked example.
 | ---- | ------------------------------------------------------- | ----- | -------- |
 | 0001 | Record architecture decisions                           | —     | Accepted |
 | 0002 | Repository structure                                    | —     | Accepted |
-| 0003 | Kubernetes version pin and upgrade strategy             | —     | Accepted |
+| 0003 | Kubernetes version pin and upgrade strategy             | —     | Superseded by ADR-0029 |
 | 0004 | `os_prep` role structure and idempotence as design rule | L1.1  | Accepted |
 | 0005 | Swap disable strategy                                   | L1.1  | Accepted |
 | 0006 | ADR format and metadata convention                      | —     | Accepted |
@@ -73,8 +73,11 @@ ADR-0005 amending ADR-0004 is the worked example.
 | 0021 | site.yml role composition — single play per role; kube_bootstrap self-gates | L1.2 | Accepted |
 | 0022 | Cilium datapath — native routing on all shapes; autoDirectNodeRoutes/BGP as additive per-shape knobs | L2 | Accepted |
 | 0023 | Cilium delivery — Helm via kubernetes.core.helm; two-plane split (bootstrap install / gitops runtime CRs) | L2 | Accepted |
-| 0024 | Gateway API CRDs pinned (v1.4.1, standard channel), vendored, applied before Cilium operator boots | L2 | Accepted |
+| 0024 | Gateway API CRDs pinned (v1.4.1, standard channel), vendored, applied before Cilium operator boots | L2 | Superseded by ADR-0031 |
 | 0025 | BGP control plane enabled but dormant at L2; cilium.io/v2 API; runtime peering deferred | L2 | Accepted |
 | 0026 | Pod CIDR 100.64.0.0/14 (RFC 6598, /24 per node); ipv4NativeRoutingCIDR coupled; disjoint from RFC 1918 fabric | L2 | Accepted |
 | 0027 | Egress Gateway + L2 announcements enabled at install, dormant; PodCIDR not BGP-advertised | L2 | Accepted |
-| 0028 | Adopt Cilium 1.19.x over parent design's 1.16 LTS; 1.20+ deferred until explicit upgrade ADR | L2 | Accepted |
+| 0028 | Adopt Cilium 1.19.x over parent design's 1.16 LTS; 1.20+ deferred until explicit upgrade ADR | L2 | Superseded by ADR-0030 |
+| 0029 | Kubernetes 1.36 re-baseline (containerd 2.3 LTS); version lifecycle policy; rebuild over in-place upgrade | — | Accepted |
+| 0030 | Adopt Cilium 1.20.x; veth datapath mode pinned; dead Helm keys removed | L2 | Accepted |
+| 0031 | Gateway API CRDs pinned (v1.6.3, standard channel), fetched at install time with a pinned checksum (not vendored), server-side applied before Cilium operator boots | L2 | Accepted |

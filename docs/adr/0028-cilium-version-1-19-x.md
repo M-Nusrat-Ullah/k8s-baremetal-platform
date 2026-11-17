@@ -1,11 +1,11 @@
 # ADR-0028: Adopt Cilium 1.19.x over parent design's 1.16 LTS
 
-- **Status** — Accepted
+- **Status** — Superseded by ADR-0030
 - **Date** — 2026-06-07
 - **Deciders** — Nusrat Ullah
 - **Layer** — L2
 - **Supersedes** — none
-- **Superseded by** — none
+- **Superseded by** — ADR-0030
 
 ## Context
 
