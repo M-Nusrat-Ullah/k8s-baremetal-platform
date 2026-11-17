@@ -26,7 +26,7 @@ is active.
 (and the `--cgroup-driver` flag) is deprecated as of 1.34, with removal
 scheduled no earlier than Kubernetes 1.36.
 
-The 1.32 Grameenphone floor must also be covered. On 1.32 the gate is
+The 1.32 customer floor must also be covered. On 1.32 the gate is
 alpha (off by default), so CRI detection is not the active mechanism.
 
 ## Decision

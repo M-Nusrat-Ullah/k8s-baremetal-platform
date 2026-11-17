@@ -12,8 +12,7 @@
 The repository must pin a specific Kubernetes minor version. Constraints
 at decision time:
 
-- A customer-side requirement (Grameenphone hardening) sets a floor of
-  Kubernetes 1.32.
+- A customer-side hardening requirement sets a floor of Kubernetes 1.32.
 - Kubernetes 1.32 reached End of Life on 2026-02-28 — no further
   security patches.
 - Kubernetes 1.33 reaches EOL on 2026-06-28 — approximately five weeks
@@ -64,7 +63,7 @@ Upgrade strategy:
 
 ## Alternatives considered
 
-- **1.32.** Floor of the GP requirement, but already EOL. Rejected —
+- **1.32.** Floor of the customer requirement, but already EOL. Rejected —
   running without security patches is not "production-grade."
 - **1.33.** Live for five more weeks. Rejected — would force an upgrade
   before Layer 1 is finished.
