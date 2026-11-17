@@ -85,6 +85,21 @@ echo "$ANSIBLE_COLLECTIONS_PATH"      # …/bootstrap/collections
 
 # 7. Smoke test — should print "skipping: no hosts matched" with no errors
 (cd bootstrap && ansible-playbook -i inventory/lab-single-node/ site.yml --check)
+
+# 8. Control-node binaries (needed from L2; not Python, not Galaxy).
+#    Pins live in bootstrap/group_vars/all/versions.yml (cosign.*, helm.*);
+#    the values below are those pins — update both together.
+#    cosign verifies Cilium image signatures when digests are pinned (ADR-0030);
+#    helm renders charts for the values gate and pulls them. Use any directory
+#    on PATH instead of ~/.local/bin if you prefer.
+D=$(mktemp -d)
+curl -fsSL -o "$D/cosign" https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-amd64
+echo "424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa  $D/cosign" | sha256sum -c -
+install -m 0755 "$D/cosign" ~/.local/bin/cosign
+curl -fsSL -o "$D/helm.tgz" https://get.helm.sh/helm-v4.3.2-linux-amd64.tar.gz
+echo "d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983  $D/helm.tgz" | sha256sum -c -
+tar -xzf "$D/helm.tgz" -C "$D" && install -m 0755 "$D/linux-amd64/helm" ~/.local/bin/helm
+cosign version | grep GitVersion; helm version --short   # v3.1.4 ; v4.3.2+g…
 ```
 
 If step 6 shows the venv paths and step 7 prints `PLAY RECAP ***` with no
