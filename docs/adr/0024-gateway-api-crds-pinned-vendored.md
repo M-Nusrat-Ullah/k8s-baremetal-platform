@@ -1,11 +1,11 @@
 # ADR-0024: Gateway API CRDs pinned (v1.4.1, standard channel), vendored
 
-- **Status** — Accepted
+- **Status** — Superseded by ADR-0031
 - **Date** — 2026-06-07
 - **Deciders** — Nusrat Ullah
 - **Layer** — L2
 - **Supersedes** — none
-- **Superseded by** — none
+- **Superseded by** — ADR-0031
 
 ## Context
 

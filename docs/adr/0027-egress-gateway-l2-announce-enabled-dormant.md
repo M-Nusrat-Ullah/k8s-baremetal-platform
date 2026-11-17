@@ -6,6 +6,7 @@
 - **Layer** — L2
 - **Supersedes** — none
 - **Superseded by** — none
+- **Amended by** — ADR-0030
 
 ## Context
 

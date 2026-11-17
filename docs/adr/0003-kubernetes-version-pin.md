@@ -1,11 +1,11 @@
 # ADR-0003: Kubernetes version pin and upgrade strategy
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0029
 - **Date:** 2026-05-24
 - **Deciders:** M Nusrat Ullah
 - **Layer:** —
 - **Supersedes:** none
-- **Superseded by:** none
+- **Superseded by:** ADR-0029
 
 ## Context
 
